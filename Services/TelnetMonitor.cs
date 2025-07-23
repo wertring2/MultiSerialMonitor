@@ -20,32 +20,87 @@ namespace MultiSerialMonitor.Services
         
         public async Task ConnectAsync()
         {
+            Connection.ConnectionAttempts = 0;
+            Exception? lastException = null;
+            
+            for (int attempt = 1; attempt <= Connection.Config.MaxRetryAttempts; attempt++)
+            {
+                Connection.ConnectionAttempts = attempt;
+                
+                try
+                {
+                    await ConnectWithTimeoutAsync();
+                    return; // Success
+                }
+                catch (Exception ex)
+                {
+                    lastException = ex;
+                    string errorMsg = GetDetailedErrorMessage(ex);
+                    Connection.SetError(errorMsg);
+                    Connection.OnDataReceived($"[Attempt {attempt}/{Connection.Config.MaxRetryAttempts}] {errorMsg}");
+                    
+                    if (attempt < Connection.Config.MaxRetryAttempts)
+                    {
+                        Connection.OnDataReceived($"Retrying in {Connection.Config.RetryDelayMs}ms...");
+                        await Task.Delay(Connection.Config.RetryDelayMs);
+                    }
+                }
+            }
+            
+            // All attempts failed
+            Connection.SetStatus(ConnectionStatus.Error);
+            throw new Exception($"Failed to connect after {Connection.Config.MaxRetryAttempts} attempts", lastException);
+        }
+        
+        private async Task ConnectWithTimeoutAsync()
+        {
+            Connection.SetStatus(ConnectionStatus.Connecting);
+            
+            var cts = new CancellationTokenSource(Connection.Config.ConnectionTimeoutMs);
+            
             try
             {
-                Connection.SetStatus(ConnectionStatus.Connecting);
+                _telnetClient = new Client(Connection.HostName, Connection.Port, cts.Token);
                 
-                _telnetClient = new Client(Connection.HostName, Connection.Port, CancellationToken.None);
+                // Wait a bit to ensure connection is established
+                await Task.Delay(100);
                 
                 // Test connection
-                if (_telnetClient.IsConnected)
+                if (!_telnetClient.IsConnected)
                 {
-                    Connection.SetStatus(ConnectionStatus.Connected);
-                    
-                    // Start reading data
-                    _cancellationTokenSource = new CancellationTokenSource();
-                    _readTask = Task.Run(() => ReadDataAsync(_cancellationTokenSource.Token));
+                    throw new Exception("Client created but not connected");
                 }
-                else
-                {
-                    throw new Exception("Failed to connect to Telnet server");
-                }
+                
+                Connection.SetStatus(ConnectionStatus.Connected);
+                Connection.SetError("");
+                Connection.OnDataReceived($"Connected to {Connection.HostName}:{Connection.Port}");
+                
+                // Start reading data
+                _cancellationTokenSource = new CancellationTokenSource();
+                _readTask = Task.Run(() => ReadDataAsync(_cancellationTokenSource.Token));
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                Connection.SetStatus(ConnectionStatus.Error);
-                Connection.OnDataReceived($"Error: {ex.Message}");
-                throw;
+                throw new TimeoutException($"Connection timeout after {Connection.Config.ConnectionTimeoutMs}ms");
             }
+        }
+        
+        private string GetDetailedErrorMessage(Exception ex)
+        {
+            return ex switch
+            {
+                System.Net.Sockets.SocketException se when se.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionRefused 
+                    => $"Connection refused by {Connection.HostName}:{Connection.Port}. Service may not be running.",
+                System.Net.Sockets.SocketException se when se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound 
+                    => $"Host '{Connection.HostName}' not found. Check hostname/IP.",
+                System.Net.Sockets.SocketException se when se.SocketErrorCode == System.Net.Sockets.SocketError.TimedOut 
+                    => $"Connection timed out. Host may be unreachable.",
+                System.Net.Sockets.SocketException se when se.SocketErrorCode == System.Net.Sockets.SocketError.NetworkUnreachable 
+                    => $"Network unreachable. Check network connection.",
+                TimeoutException => $"Connection timed out after {Connection.Config.ConnectionTimeoutMs}ms.",
+                ArgumentException => $"Invalid hostname or port: {Connection.HostName}:{Connection.Port}",
+                _ => $"Connection failed: {ex.Message}"
+            };
         }
         
         public async Task DisconnectAsync()
@@ -113,13 +168,13 @@ namespace MultiSerialMonitor.Services
                             if (c == '\n')
                             {
                                 string line = lineBuilder.ToString().TrimEnd('\r');
-                                if (!string.IsNullOrEmpty(line))
+                                if (!string.IsNullOrWhiteSpace(line))
                                 {
                                     Connection.OnDataReceived(line);
                                 }
                                 lineBuilder.Clear();
                             }
-                            else if (c != '\0') // Ignore null characters
+                            else if (c != '\0' && c != '\r') // Ignore null characters and carriage returns
                             {
                                 lineBuilder.Append(c);
                             }
@@ -142,7 +197,17 @@ namespace MultiSerialMonitor.Services
         
         public void Dispose()
         {
-            DisconnectAsync().Wait();
+            try
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+                _telnetClient?.Dispose();
+                _telnetClient = null;
+            }
+            catch
+            {
+                // Ignore errors during disposal
+            }
         }
     }
 }

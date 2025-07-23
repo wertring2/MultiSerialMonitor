@@ -37,13 +37,38 @@ namespace MultiSerialMonitor.Models
         public int Port { get; set; } = 23;
         
         public DateTime LastActivity { get; set; } = DateTime.Now;
+        public string? LastError { get; set; }
+        public DateTime? LastErrorTime { get; set; }
+        public int ConnectionAttempts { get; set; }
+        public ConnectionConfig Config { get; set; } = new ConnectionConfig();
+        
         public event EventHandler<string>? DataReceived;
         public event EventHandler<ConnectionStatus>? StatusChanged;
+        public event EventHandler<string>? ErrorOccurred;
         
         public void OnDataReceived(string data)
         {
             LastLine = data;
-            OutputHistory.Add($"[{DateTime.Now:HH:mm:ss}] {data}");
+            // Check if data already contains timestamp patterns like [16:34:39] or [*07/01/2025 10:38:59.5433]
+            bool hasTimestamp = false;
+            if (data.Length > 0 && data[0] == '[')
+            {
+                int closeBracket = data.IndexOf(']');
+                if (closeBracket > 1 && closeBracket < 50) // Reasonable timestamp length
+                {
+                    hasTimestamp = true;
+                }
+            }
+            
+            if (hasTimestamp)
+            {
+                OutputHistory.Add(data);
+            }
+            else
+            {
+                OutputHistory.Add($"[{DateTime.Now:HH:mm:ss}] {data}");
+            }
+            
             LastActivity = DateTime.Now;
             DataReceived?.Invoke(this, data);
         }
@@ -52,6 +77,13 @@ namespace MultiSerialMonitor.Models
         {
             Status = status;
             StatusChanged?.Invoke(this, status);
+        }
+        
+        public void SetError(string error)
+        {
+            LastError = error;
+            LastErrorTime = DateTime.Now;
+            ErrorOccurred?.Invoke(this, error);
         }
     }
 }

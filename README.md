@@ -45,6 +45,9 @@ A .NET 9 Windows Forms application for monitoring multiple Serial Ports and Teln
 3. **Managing Connections**:
    - Right-click on any port panel for context menu
    - Connect/Disconnect/Remove ports as needed
+   - Click the × button on each port panel to quickly remove it
+   - Use "Remove All" button in toolbar to clear all ports
+   - Press Delete key when a port panel is focused to remove it
 
 ## Requirements
 

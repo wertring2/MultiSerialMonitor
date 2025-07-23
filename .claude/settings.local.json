@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dotnet build)",
-      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build)"
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build --no-incremental)"
     ],
     "deny": []
   }

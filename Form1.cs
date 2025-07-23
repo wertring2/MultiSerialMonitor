@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using MultiSerialMonitor.Controls;
 using MultiSerialMonitor.Forms;
 using MultiSerialMonitor.Models;
@@ -45,7 +46,20 @@ namespace MultiSerialMonitor
             };
             refreshButton.Click += OnRefreshClick;
             
-            _toolbar.Items.AddRange(new ToolStripItem[] { addButton, new ToolStripSeparator(), refreshButton });
+            var removeAllButton = new ToolStripButton
+            {
+                Text = "Remove All",
+                DisplayStyle = ToolStripItemDisplayStyle.Text
+            };
+            removeAllButton.Click += OnRemoveAllClick;
+            
+            _toolbar.Items.AddRange(new ToolStripItem[] { 
+                addButton, 
+                new ToolStripSeparator(), 
+                refreshButton,
+                new ToolStripSeparator(),
+                removeAllButton 
+            });
             
             // Ports panel
             _portsPanel = new FlowLayoutPanel
@@ -110,7 +124,46 @@ namespace MultiSerialMonitor
             }
             catch (Exception ex)
             {
-                _statusLabel.Text = $"Failed to connect to {connection.Name}: {ex.Message}";
+                _statusLabel.Text = $"Failed to connect to {connection.Name}";
+                
+                // Show options to user
+                var result = MessageBox.Show(
+                    $"Failed to connect to {connection.Name}.\n\n" +
+                    $"Error: {ex.Message}\n\n" +
+                    "Would you like to:\n" +
+                    "• Retry - Try connecting again\n" +
+                    "• Ignore - Keep the port but don't connect\n" +
+                    "• Abort - Remove the port",
+                    "Connection Failed",
+                    MessageBoxButtons.AbortRetryIgnore,
+                    MessageBoxIcon.Warning);
+                
+                switch (result)
+                {
+                    case DialogResult.Retry:
+                        // Try again
+                        try
+                        {
+                            await monitor.ConnectAsync();
+                            _statusLabel.Text = $"Connected to {connection.Name}";
+                        }
+                        catch
+                        {
+                            _statusLabel.Text = $"Still failed to connect to {connection.Name}";
+                        }
+                        break;
+                    
+                    case DialogResult.Abort:
+                        // Remove the port
+                        await RemovePortAsync(connection);
+                        _statusLabel.Text = $"Removed {connection.Name}";
+                        break;
+                    
+                    case DialogResult.Ignore:
+                        // Keep port in disconnected state
+                        _statusLabel.Text = $"Port {connection.Name} added but not connected";
+                        break;
+                }
             }
         }
         
@@ -175,35 +228,91 @@ namespace MultiSerialMonitor
             }
         }
         
-        private void RemovePort(PortConnection connection)
+        private async void RemovePort(PortConnection connection)
         {
             var result = MessageBox.Show($"Remove {connection.Name}?", "Confirm Remove", 
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             
             if (result == DialogResult.Yes)
             {
-                // Close console form if open
-                if (_consoleForms.TryGetValue(connection.Id, out var consoleForm))
+                try
+                {
+                    Cursor = Cursors.WaitCursor;
+                    _statusLabel.Text = $"Removing {connection.Name}...";
+                    Application.DoEvents(); // Force UI update
+                    
+                    await RemovePortAsync(connection);
+                    
+                    _statusLabel.Text = $"Removed {connection.Name}";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error removing port: {ex.Message}", "Error", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    _statusLabel.Text = "Error removing port";
+                }
+                finally
+                {
+                    Cursor = Cursors.Default;
+                }
+            }
+        }
+        
+        private async Task RemovePortAsync(PortConnection connection)
+        {
+            // Close console form if open
+            if (_consoleForms.TryGetValue(connection.Id, out var consoleForm))
+            {
+                if (InvokeRequired)
+                {
+                    Invoke(() => consoleForm.Close());
+                }
+                else
                 {
                     consoleForm.Close();
                 }
-                
-                // Dispose monitor
-                if (_monitors.TryGetValue(connection.Id, out var monitor))
+                _consoleForms.Remove(connection.Id);
+            }
+            
+            // Disconnect and dispose monitor in background
+            if (_monitors.TryGetValue(connection.Id, out var monitor))
+            {
+                await Task.Run(async () =>
                 {
-                    monitor.Dispose();
-                    _monitors.Remove(connection.Id);
+                    try
+                    {
+                        if (monitor.IsConnected)
+                        {
+                            await monitor.DisconnectAsync();
+                        }
+                        monitor.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but continue with removal
+                        Debug.WriteLine($"Error disposing monitor: {ex.Message}");
+                    }
+                });
+                _monitors.Remove(connection.Id);
+            }
+            
+            // Remove panel on UI thread
+            if (_portPanels.TryGetValue(connection.Id, out var panel))
+            {
+                if (InvokeRequired)
+                {
+                    Invoke(() =>
+                    {
+                        _portsPanel.Controls.Remove(panel);
+                        panel.Dispose();
+                    });
                 }
-                
-                // Remove panel
-                if (_portPanels.TryGetValue(connection.Id, out var panel))
+                else
                 {
                     _portsPanel.Controls.Remove(panel);
                     panel.Dispose();
-                    _portPanels.Remove(connection.Id);
                 }
-                
-                _statusLabel.Text = $"Removed {connection.Name}";
+                _portPanels.Remove(connection.Id);
             }
         }
         
@@ -213,6 +322,46 @@ namespace MultiSerialMonitor
             foreach (var panel in _portPanels.Values)
             {
                 panel.Invalidate();
+            }
+        }
+        
+        private async void OnRemoveAllClick(object? sender, EventArgs e)
+        {
+            if (_portPanels.Count == 0)
+            {
+                MessageBox.Show("No ports to remove.", "Information", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            var result = MessageBox.Show($"Remove all {_portPanels.Count} port(s)?", "Confirm Remove All", 
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            
+            if (result == DialogResult.Yes)
+            {
+                try
+                {
+                    Cursor = Cursors.WaitCursor;
+                    _statusLabel.Text = "Removing all ports...";
+                    Application.DoEvents();
+                    
+                    // Get all connections to remove
+                    var connectionsToRemove = _portPanels.Values
+                        .Select(p => p.Connection)
+                        .ToList();
+                    
+                    // Remove each connection
+                    foreach (var connection in connectionsToRemove)
+                    {
+                        await RemovePortAsync(connection);
+                    }
+                    
+                    _statusLabel.Text = $"Removed all ports";
+                }
+                finally
+                {
+                    Cursor = Cursors.Default;
+                }
             }
         }
         

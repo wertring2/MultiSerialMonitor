@@ -139,7 +139,25 @@ namespace MultiSerialMonitor.Forms
                          data.StartsWith("Error") ? Color.Red : 
                          Color.LightGray;
             
-            AppendLine($"[{DateTime.Now:HH:mm:ss}] {data}", color);
+            // Check if data already contains timestamp
+            bool hasTimestamp = false;
+            if (data.Length > 0 && data[0] == '[')
+            {
+                int closeBracket = data.IndexOf(']');
+                if (closeBracket > 1 && closeBracket < 50)
+                {
+                    hasTimestamp = true;
+                }
+            }
+            
+            if (hasTimestamp)
+            {
+                AppendLine(data, color);
+            }
+            else
+            {
+                AppendLine($"[{DateTime.Now:HH:mm:ss}] {data}", color);
+            }
         }
         
         private void OnStatusChanged(object? sender, ConnectionStatus status)
