@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor.Utils
 {
@@ -46,12 +47,12 @@ namespace MultiSerialMonitor.Utils
         {
             return ex switch
             {
-                UnauthorizedAccessException => "Access denied. The port may be in use by another application.",
-                IOException ioe when ioe.Message.Contains("not exist") => "The specified port does not exist.",
-                IOException ioe when ioe.Message.Contains("denied") => "Access to the port was denied.",
-                TimeoutException => "The operation timed out. The device may not be responding.",
-                InvalidOperationException => "Invalid operation. Please check your settings.",
-                ArgumentException => "Invalid argument provided. Please verify your input.",
+                UnauthorizedAccessException => LocalizationManager.GetString("AccessDenied"),
+                IOException ioe when ioe.Message.Contains("not exist") => LocalizationManager.GetString("PortDoesNotExist"),
+                IOException ioe when ioe.Message.Contains("denied") => LocalizationManager.GetString("AccessDenied"),
+                TimeoutException => LocalizationManager.GetString("OperationTimedOut"),
+                InvalidOperationException => LocalizationManager.GetString("InvalidOperation"),
+                ArgumentException => LocalizationManager.GetString("InvalidOperation"),
                 OutOfMemoryException => "The application is running low on memory. Please close some connections.",
                 _ => $"An error occurred: {ex.Message}"
             };

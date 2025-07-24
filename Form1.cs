@@ -4,15 +4,17 @@ using MultiSerialMonitor.Forms;
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Services;
 using MultiSerialMonitor.Exceptions;
+using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor
 {
-    public partial class Form1 : Form
+    public partial class Form1 : Form, ILocalizable
     {
         private FlowLayoutPanel _portsPanel;
         private ToolStrip _toolbar;
         private StatusStrip _statusStrip;
         private ToolStripStatusLabel _statusLabel;
+        private ToolStripDropDownButton _languageDropDown;
         
         private readonly Dictionary<string, IPortMonitor> _monitors = new();
         private readonly Dictionary<string, PortPanel> _portPanels = new();
@@ -22,7 +24,10 @@ namespace MultiSerialMonitor
         public Form1()
         {
             InitializeComponent();
+            LoadLanguagePreference();
             InitializeCustomComponents();
+            ApplyLocalization();
+            LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
             LoadSavedConfiguration();
         }
         
@@ -103,6 +108,28 @@ namespace MultiSerialMonitor
             // Update load profile submenu dynamically
             profileDropDown.DropDownOpening += (s, e) => UpdateLoadProfileMenu(loadProfileItem);
             
+            // Language dropdown
+            _languageDropDown = new ToolStripDropDownButton
+            {
+                Text = "Language",
+                DisplayStyle = ToolStripItemDisplayStyle.Text
+            };
+            
+            foreach (var lang in LanguageInfo.AvailableLanguages)
+            {
+                var item = new ToolStripMenuItem(lang.DisplayName);
+                item.Tag = lang.Language;
+                item.Click += (s, e) =>
+                {
+                    if (s is ToolStripMenuItem menuItem && menuItem.Tag is Language language)
+                    {
+                        LocalizationManager.CurrentLanguage = language;
+                        SaveLanguagePreference(language);
+                    }
+                };
+                _languageDropDown.DropDownItems.Add(item);
+            }
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
@@ -111,7 +138,9 @@ namespace MultiSerialMonitor
                 profileDropDown,
                 new ToolStripSeparator(),
                 clearAllButton,
-                removeAllButton 
+                removeAllButton,
+                new ToolStripSeparator(),
+                _languageDropDown
             });
             
             // Ports panel
@@ -396,7 +425,8 @@ namespace MultiSerialMonitor
         
         private async void RemovePort(PortConnection connection)
         {
-            var result = MessageBox.Show($"Remove {connection.Name}?", "Confirm Remove", 
+            var message = string.Format(LocalizationManager.GetString("RemoveQuestion"), connection.Name);
+            var result = MessageBox.Show(message, LocalizationManager.GetString("ConfirmRemove"), 
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             
             if (result == DialogResult.Yes)
@@ -593,13 +623,14 @@ namespace MultiSerialMonitor
         {
             if (_portPanels.Count == 0)
             {
-                MessageBox.Show("No ports to clear.", "Information", 
+                MessageBox.Show(LocalizationManager.GetString("NoPortsToClear"), 
+                    LocalizationManager.GetString("Information"), 
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             
-            var result = MessageBox.Show("Are you sure you want to clear all data for all ports?", 
-                "Confirm Clear All", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var result = MessageBox.Show(LocalizationManager.GetString("ClearAllQuestion"), 
+                LocalizationManager.GetString("ConfirmClearAll"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             
             if (result == DialogResult.Yes)
             {
@@ -615,12 +646,14 @@ namespace MultiSerialMonitor
         {
             if (_portPanels.Count == 0)
             {
-                MessageBox.Show("No ports to remove.", "Information", 
+                MessageBox.Show(LocalizationManager.GetString("NoPortsToRemove"), 
+                    LocalizationManager.GetString("Information"), 
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             
-            var result = MessageBox.Show($"Remove all {_portPanels.Count} port(s)?", "Confirm Remove All", 
+            var message = string.Format(LocalizationManager.GetString("RemoveAllQuestion"), _portPanels.Count);
+            var result = MessageBox.Show(message, LocalizationManager.GetString("ConfirmRemoveAll"), 
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             
             if (result == DialogResult.Yes)
@@ -939,6 +972,121 @@ namespace MultiSerialMonitor
             }
             
             base.OnFormClosing(e);
+        }
+        
+        public void ApplyLocalization()
+        {
+            Text = LocalizationManager.GetString("AppTitle");
+            
+            // Update toolbar items
+            if (_toolbar != null)
+            {
+                foreach (ToolStripItem item in _toolbar.Items)
+                {
+                    if (item.Text == "Add Port" || item.Text == "เพิ่มพอร์ต")
+                        item.Text = LocalizationManager.GetString("AddPort");
+                    else if (item.Text == "Refresh" || item.Text == "รีเฟรช")
+                        item.Text = LocalizationManager.GetString("Refresh");
+                    else if (item.Text == "Remove All" || item.Text == "ลบทั้งหมด")
+                        item.Text = LocalizationManager.GetString("RemoveAll");
+                    else if (item.Text == "Clear All Data" || item.Text == "ล้างข้อมูลทั้งหมด")
+                        item.Text = LocalizationManager.GetString("ClearAllData");
+                    else if (item.Text == "Profiles" || item.Text == "โปรไฟล์")
+                        item.Text = LocalizationManager.GetString("Profiles");
+                    else if (item.Text == "Language" || item.Text == "ภาษา")
+                        item.Text = LocalizationManager.GetString("Language");
+                }
+                
+                // Update profile dropdown items
+                var profileDropDown = _toolbar.Items.OfType<ToolStripDropDownButton>().FirstOrDefault(b => b.Text == LocalizationManager.GetString("Profiles"));
+                if (profileDropDown != null)
+                {
+                    foreach (ToolStripItem item in profileDropDown.DropDownItems)
+                    {
+                        if (item is ToolStripMenuItem menuItem)
+                        {
+                            if (menuItem.Text == "Save Profile..." || menuItem.Text == "บันทึกโปรไฟล์...")
+                                menuItem.Text = LocalizationManager.GetString("SaveProfile");
+                            else if (menuItem.Text == "Load Profile" || menuItem.Text == "โหลดโปรไฟล์")
+                                menuItem.Text = LocalizationManager.GetString("LoadProfile");
+                            else if (menuItem.Text == "Export Profile..." || menuItem.Text == "ส่งออกโปรไฟล์...")
+                                menuItem.Text = LocalizationManager.GetString("ExportProfile");
+                            else if (menuItem.Text == "Import Profile..." || menuItem.Text == "นำเข้าโปรไฟล์...")
+                                menuItem.Text = LocalizationManager.GetString("ImportProfile");
+                            else if (menuItem.Text == "Manage Profiles..." || menuItem.Text == "จัดการโปรไฟล์...")
+                                menuItem.Text = LocalizationManager.GetString("ManageProfiles");
+                        }
+                    }
+                }
+            }
+            
+            // Update status label
+            if (_statusLabel != null && (_statusLabel.Text == "Ready" || _statusLabel.Text == "พร้อม"))
+            {
+                _statusLabel.Text = LocalizationManager.GetString("Ready");
+            }
+            
+            // Update all port panels
+            foreach (var panel in _portPanels.Values)
+            {
+                if (panel is ILocalizable localizable)
+                {
+                    localizable.ApplyLocalization();
+                }
+            }
+            
+            // Update all console forms
+            foreach (var form in _consoleForms.Values)
+            {
+                if (form is ILocalizable localizable)
+                {
+                    localizable.ApplyLocalization();
+                }
+            }
+        }
+        
+        private void SaveLanguagePreference(Language language)
+        {
+            try
+            {
+                var appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MultiSerialMonitor"
+                );
+                Directory.CreateDirectory(appDataPath);
+                
+                var prefsPath = Path.Combine(appDataPath, "language.pref");
+                File.WriteAllText(prefsPath, language.ToString());
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving language preference: {ex.Message}");
+            }
+        }
+        
+        private void LoadLanguagePreference()
+        {
+            try
+            {
+                var appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MultiSerialMonitor"
+                );
+                var prefsPath = Path.Combine(appDataPath, "language.pref");
+                
+                if (File.Exists(prefsPath))
+                {
+                    var langStr = File.ReadAllText(prefsPath).Trim();
+                    if (Enum.TryParse<Language>(langStr, out var language))
+                    {
+                        LocalizationManager.CurrentLanguage = language;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading language preference: {ex.Message}");
+            }
         }
     }
 }

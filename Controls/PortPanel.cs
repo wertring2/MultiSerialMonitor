@@ -1,8 +1,9 @@
 using MultiSerialMonitor.Models;
+using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor.Controls
 {
-    public class PortPanel : Panel
+    public class PortPanel : Panel, ILocalizable
     {
         private Label _nameLabel;
         private Label _statusLabel;
@@ -260,9 +261,13 @@ namespace MultiSerialMonitor.Controls
         {
             string timestampText = _lastTimestamp.HasValue 
                 ? _lastTimestamp.Value.ToString("HH:mm:ss") 
-                : "No data";
+                : LocalizationManager.GetString("NoData");
             
-            _statsLabel.Text = $"Time: {timestampText} | Lines: {_lineCount} | Packages: {_packageCount}";
+            var timeLabel = LocalizationManager.GetString("Time");
+            var linesLabel = LocalizationManager.GetString("Lines");
+            var packagesLabel = LocalizationManager.GetString("Packages");
+            
+            _statsLabel.Text = $"{timeLabel}: {timestampText} | {linesLabel}: {_lineCount} | {packagesLabel}: {_packageCount}";
         }
         
         private void OnDataReceived(object? sender, string data)
@@ -524,7 +529,8 @@ namespace MultiSerialMonitor.Controls
         private void UpdateDetectionDisplay()
         {
             int detectionCount = Connection.DetectionMatches.Count;
-            _detectionLabel.Text = $"Detections: {detectionCount}";
+            var detectionsLabel = LocalizationManager.GetString("Detections");
+            _detectionLabel.Text = $"{detectionsLabel}: {detectionCount}";
             
             if (detectionCount > 0)
             {
@@ -576,6 +582,56 @@ namespace MultiSerialMonitor.Controls
                 Connection.DataCleared -= OnDataCleared;
             }
             base.Dispose(disposing);
+        }
+        
+        public void ApplyLocalization()
+        {
+            // Update button texts
+            if (_expandButton != null)
+                _expandButton.Text = LocalizationManager.GetString("Expand");
+            if (_clearButton != null)
+                _clearButton.Text = LocalizationManager.GetString("Clear");
+                
+            // Update status label
+            if (_statusLabel != null)
+            {
+                var status = Connection.Status.ToString();
+                _statusLabel.Text = LocalizationManager.GetString(status);
+            }
+            
+            // Update stats label
+            UpdateStatsDisplay();
+            
+            // Update detection label
+            UpdateDetectionDisplay();
+            
+            // Update context menu
+            if (_contextMenu != null)
+            {
+                foreach (ToolStripItem item in _contextMenu.Items)
+                {
+                    if (item is ToolStripMenuItem menuItem)
+                    {
+                        if (menuItem.Text == "Connect" || menuItem.Text == "เชื่อมต่อ")
+                            menuItem.Text = LocalizationManager.GetString("Connect");
+                        else if (menuItem.Text == "Disconnect" || menuItem.Text == "ตัดการเชื่อมต่อ")
+                            menuItem.Text = LocalizationManager.GetString("Disconnect");
+                        else if (menuItem.Text == "Clear Data" || menuItem.Text == "ล้างข้อมูล")
+                            menuItem.Text = LocalizationManager.GetString("ClearData");
+                        else if (menuItem.Text == "Export Data..." || menuItem.Text == "ส่งออกข้อมูล...")
+                            menuItem.Text = LocalizationManager.GetString("ExportData");
+                        else if (menuItem.Text == "Remove" || menuItem.Text == "ลบ")
+                            menuItem.Text = LocalizationManager.GetString("Remove");
+                    }
+                }
+            }
+            
+            // Update tooltips
+            var toolTip = new ToolTip();
+            toolTip.SetToolTip(_expandButton, LocalizationManager.GetString("OpenConsoleView"));
+            toolTip.SetToolTip(_deleteButton, LocalizationManager.GetString("RemoveThisPort"));
+            toolTip.SetToolTip(_configDetectionButton, LocalizationManager.GetString("ConfigureDetectionPatterns"));
+            toolTip.SetToolTip(_clearButton, LocalizationManager.GetString("ClearAllDataForThisPort"));
         }
     }
 }

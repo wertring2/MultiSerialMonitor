@@ -1,8 +1,10 @@
 using MultiSerialMonitor.Models;
+using MultiSerialMonitor.Localization;
+using System.Text;
 
 namespace MultiSerialMonitor.Forms
 {
-    public partial class DetectionViewForm : Form
+    public partial class DetectionViewForm : Form, ILocalizable
     {
         private PortConnection _connection;
         private DataGridView _detectionsGrid;
@@ -17,7 +19,10 @@ namespace MultiSerialMonitor.Forms
         {
             _connection = connection;
             InitializeComponents();
+            ApplyLocalization();
             LoadDetections();
+            
+            LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
         }
         
         private void InitializeComponents()
@@ -173,7 +178,14 @@ namespace MultiSerialMonitor.Forms
                 .Select(g => $"{g.Key}: {g.Count()}")
                 .ToList();
             
-            _summaryLabel.Text = $"Total Detections: {totalCount} | {string.Join(" | ", patternCounts)}";
+            if (LocalizationManager.CurrentLanguage == Language.Thai)
+            {
+                _summaryLabel.Text = $"รายการตรวจพบทั้งหมด: {totalCount} | {string.Join(" | ", patternCounts)}";
+            }
+            else
+            {
+                _summaryLabel.Text = $"Total Detections: {totalCount} | {string.Join(" | ", patternCounts)}";
+            }
         }
         
         private void OnSelectionChanged(object? sender, EventArgs e)
@@ -195,27 +207,33 @@ namespace MultiSerialMonitor.Forms
             // Header
             _detailsTextBox.SelectionColor = Color.Yellow;
             _detailsTextBox.SelectionFont = new Font(_detailsTextBox.Font, FontStyle.Bold);
-            _detailsTextBox.AppendText($"Detection Details\n");
+            
+            var headerText = LocalizationManager.CurrentLanguage == Language.Thai ? "รายละเอียดการตรวจพบ" : "Detection Details";
+            _detailsTextBox.AppendText($"{headerText}\n");
             _detailsTextBox.AppendText(new string('-', 80) + "\n\n");
             
             // Details
             _detailsTextBox.SelectionColor = Color.Cyan;
-            _detailsTextBox.AppendText($"Pattern: ");
+            var patternLabel = LocalizationManager.CurrentLanguage == Language.Thai ? "รูปแบบ: " : "Pattern: ";
+            _detailsTextBox.AppendText(patternLabel);
             _detailsTextBox.SelectionColor = Color.White;
             _detailsTextBox.AppendText($"{detection.PatternName}\n");
             
             _detailsTextBox.SelectionColor = Color.Cyan;
-            _detailsTextBox.AppendText($"Timestamp: ");
+            var timestampLabel = LocalizationManager.CurrentLanguage == Language.Thai ? "เวลา: " : "Timestamp: ";
+            _detailsTextBox.AppendText(timestampLabel);
             _detailsTextBox.SelectionColor = Color.White;
             _detailsTextBox.AppendText($"{detection.Timestamp:yyyy-MM-dd HH:mm:ss.fff}\n");
             
             _detailsTextBox.SelectionColor = Color.Cyan;
-            _detailsTextBox.AppendText($"Line Number: ");
+            var lineNumberLabel = LocalizationManager.CurrentLanguage == Language.Thai ? "บรรทัดที่: " : "Line Number: ";
+            _detailsTextBox.AppendText(lineNumberLabel);
             _detailsTextBox.SelectionColor = Color.White;
             _detailsTextBox.AppendText($"{detection.LineNumber}\n");
             
             _detailsTextBox.SelectionColor = Color.Cyan;
-            _detailsTextBox.AppendText($"Matched Text: ");
+            var matchedTextLabel = LocalizationManager.CurrentLanguage == Language.Thai ? "ข้อความที่ตรงกัน: " : "Matched Text: ";
+            _detailsTextBox.AppendText(matchedTextLabel);
             _detailsTextBox.SelectionColor = Color.Orange;
             _detailsTextBox.SelectionFont = new Font(_detailsTextBox.Font, FontStyle.Bold);
             _detailsTextBox.AppendText($"{detection.MatchedText}\n\n");
@@ -223,7 +241,8 @@ namespace MultiSerialMonitor.Forms
             // Full line with highlighting
             _detailsTextBox.SelectionColor = Color.Cyan;
             _detailsTextBox.SelectionFont = new Font(_detailsTextBox.Font, FontStyle.Regular);
-            _detailsTextBox.AppendText($"Full Line:\n");
+            var fullLineLabel = LocalizationManager.CurrentLanguage == Language.Thai ? "บรรทัดเต็ม:\n" : "Full Line:\n";
+            _detailsTextBox.AppendText(fullLineLabel);
             _detailsTextBox.SelectionColor = Color.LightGray;
             
             // Highlight matched text in the full line
@@ -257,8 +276,14 @@ namespace MultiSerialMonitor.Forms
         
         private void OnClearAll(object? sender, EventArgs e)
         {
-            var result = MessageBox.Show("Are you sure you want to clear all detection matches?", 
-                "Confirm Clear", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            var message = LocalizationManager.CurrentLanguage == Language.Thai
+                ? "คุณแน่ใจหรือไม่ที่จะล้างรายการตรวจพบทั้งหมด?"
+                : "Are you sure you want to clear all detection matches?";
+            var title = LocalizationManager.CurrentLanguage == Language.Thai
+                ? "ยืนยันการล้าง"
+                : "Confirm Clear";
+                
+            var result = MessageBox.Show(message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question);
             
             if (result == DialogResult.Yes)
             {
@@ -272,35 +297,90 @@ namespace MultiSerialMonitor.Forms
         {
             using (var saveDialog = new SaveFileDialog())
             {
-                saveDialog.Filter = "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*";
+                var csvFilter = LocalizationManager.CurrentLanguage == Language.Thai 
+                    ? "ไฟล์ CSV (*.csv)|*.csv|ไฟล์ข้อความ (*.txt)|*.txt|ไฟล์ทั้งหมด (*.*)|*.*"
+                    : "CSV files (*.csv)|*.csv|Text files (*.txt)|*.txt|All files (*.*)|*.*";
+                    
+                saveDialog.Filter = csvFilter;
                 saveDialog.FileName = $"{_connection.Name}_detections_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
                 
                 if (saveDialog.ShowDialog(this) == DialogResult.OK)
                 {
                     try
                     {
-                        using (var writer = new StreamWriter(saveDialog.FileName))
+                        // Use UTF-8 with BOM for proper Thai support in Excel
+                        var encoding = new UTF8Encoding(true);
+                        using (var writer = new StreamWriter(saveDialog.FileName, false, encoding))
                         {
-                            // Write header
-                            writer.WriteLine("Timestamp,Pattern,Matched Text,Line Number,Full Line");
+                            // Write header with localized column names
+                            var headers = new List<string>();
+                            if (LocalizationManager.CurrentLanguage == Language.Thai)
+                            {
+                                headers.Add("เวลา");
+                                headers.Add("รูปแบบ");
+                                headers.Add("ข้อความที่ตรงกัน");
+                                headers.Add("บรรทัดที่");
+                                headers.Add("บรรทัดเต็ม");
+                            }
+                            else
+                            {
+                                headers.Add("Timestamp");
+                                headers.Add("Pattern");
+                                headers.Add("Matched Text");
+                                headers.Add("Line Number");
+                                headers.Add("Full Line");
+                            }
+                            
+                            writer.WriteLine(string.Join(",", headers));
                             
                             // Write data
                             foreach (var detection in _connection.DetectionMatches.OrderBy(d => d.Timestamp))
                             {
-                                writer.WriteLine($"\"{detection.Timestamp:yyyy-MM-dd HH:mm:ss}\",\"{detection.PatternName}\",\"{detection.MatchedText}\",{detection.LineNumber},\"{detection.FullLine.Replace("\"", "\"\"")}\"");
+                                var fields = new List<string>
+                                {
+                                    $"\"{detection.Timestamp:yyyy-MM-dd HH:mm:ss}\"",
+                                    $"\"{EscapeCsvField(detection.PatternName)}\"",
+                                    $"\"{EscapeCsvField(detection.MatchedText)}\"",
+                                    detection.LineNumber.ToString(),
+                                    $"\"{EscapeCsvField(detection.FullLine)}\""
+                                };
+                                
+                                writer.WriteLine(string.Join(",", fields));
                             }
                         }
                         
-                        MessageBox.Show($"Detections exported successfully to:\n{saveDialog.FileName}", 
-                            "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        var successMessage = LocalizationManager.CurrentLanguage == Language.Thai
+                            ? $"ส่งออกการตรวจพบสำเร็จไปที่:\n{saveDialog.FileName}"
+                            : $"Detections exported successfully to:\n{saveDialog.FileName}";
+                            
+                        var successTitle = LocalizationManager.CurrentLanguage == Language.Thai
+                            ? "ส่งออกสำเร็จ"
+                            : "Export Complete";
+                            
+                        MessageBox.Show(successMessage, successTitle, 
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"Error exporting detections:\n{ex.Message}", 
-                            "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        var errorMessage = LocalizationManager.CurrentLanguage == Language.Thai
+                            ? $"เกิดข้อผิดพลาดในการส่งออก:\n{ex.Message}"
+                            : $"Error exporting detections:\n{ex.Message}";
+                            
+                        var errorTitle = LocalizationManager.CurrentLanguage == Language.Thai
+                            ? "ข้อผิดพลาดการส่งออก"
+                            : "Export Error";
+                            
+                        MessageBox.Show(errorMessage, errorTitle, 
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
+        }
+        
+        private string EscapeCsvField(string field)
+        {
+            if (field == null) return "";
+            return field.Replace("\"", "\"\"");
         }
         
         private void OnPatternDetected(object? sender, DetectionMatch match)
@@ -322,6 +402,46 @@ namespace MultiSerialMonitor.Forms
                 _connection.PatternDetected -= OnPatternDetected;
             }
             base.Dispose(disposing);
+        }
+        
+        public void ApplyLocalization()
+        {
+            // Update form title
+            Text = LocalizationManager.CurrentLanguage == Language.Thai
+                ? $"รายการตรวจพบ - {_connection.Name}"
+                : $"Detection Matches - {_connection.Name}";
+            
+            // Update column headers
+            if (_detectionsGrid != null && _detectionsGrid.Columns.Count >= 5)
+            {
+                if (LocalizationManager.CurrentLanguage == Language.Thai)
+                {
+                    _detectionsGrid.Columns["Timestamp"].HeaderText = "เวลา";
+                    _detectionsGrid.Columns["PatternName"].HeaderText = "รูปแบบ";
+                    _detectionsGrid.Columns["MatchedText"].HeaderText = "ข้อความที่ตรงกัน";
+                    _detectionsGrid.Columns["LineNumber"].HeaderText = "บรรทัดที่";
+                    _detectionsGrid.Columns["FullLine"].HeaderText = "บรรทัดเต็ม";
+                }
+                else
+                {
+                    _detectionsGrid.Columns["Timestamp"].HeaderText = "Timestamp";
+                    _detectionsGrid.Columns["PatternName"].HeaderText = "Pattern";
+                    _detectionsGrid.Columns["MatchedText"].HeaderText = "Matched Text";
+                    _detectionsGrid.Columns["LineNumber"].HeaderText = "Line #";
+                    _detectionsGrid.Columns["FullLine"].HeaderText = "Full Line";
+                }
+            }
+            
+            // Update buttons
+            if (_clearButton != null)
+                _clearButton.Text = LocalizationManager.CurrentLanguage == Language.Thai ? "ล้างทั้งหมด" : "Clear All";
+            if (_exportButton != null)
+                _exportButton.Text = LocalizationManager.CurrentLanguage == Language.Thai ? "ส่งออก" : "Export";
+            if (_closeButton != null)
+                _closeButton.Text = LocalizationManager.CurrentLanguage == Language.Thai ? "ปิด" : "Close";
+                
+            // Update summary
+            UpdateSummary();
         }
     }
 }

@@ -1,9 +1,10 @@
 using System.IO.Ports;
 using MultiSerialMonitor.Models;
+using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor.Forms
 {
-    public partial class AddPortForm : Form
+    public partial class AddPortForm : Form, ILocalizable
     {
         private TabControl _tabControl;
         private TextBox _nameTextBox;
@@ -24,6 +25,8 @@ namespace MultiSerialMonitor.Forms
         public AddPortForm()
         {
             InitializeComponents();
+            ApplyLocalization();
+            LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
         }
         
         private void InitializeComponents()
@@ -211,7 +214,8 @@ namespace MultiSerialMonitor.Forms
             var name = _nameTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(name))
             {
-                MessageBox.Show("Please enter a name for this connection.", "Validation Error", 
+                MessageBox.Show(LocalizationManager.GetString("PleaseEnterName"), 
+                    LocalizationManager.GetString("ValidationError"), 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _nameTextBox.Focus();
                 DialogResult = DialogResult.None;
@@ -220,9 +224,9 @@ namespace MultiSerialMonitor.Forms
             
             if (!Utils.ValidationHelper.IsValidConnectionName(name))
             {
-                MessageBox.Show("Connection name contains invalid characters or is too long.\n" +
-                               "Use only letters, numbers, spaces, and basic punctuation.", 
-                               "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(LocalizationManager.GetString("InvalidConnectionName"), 
+                    LocalizationManager.GetString("ValidationError"), 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _nameTextBox.Focus();
                 _nameTextBox.SelectAll();
                 DialogResult = DialogResult.None;
@@ -233,7 +237,8 @@ namespace MultiSerialMonitor.Forms
             {
                 if (_portNameCombo.SelectedItem == null)
                 {
-                    MessageBox.Show("Please select a serial port.", "Validation Error", 
+                    MessageBox.Show(LocalizationManager.GetString("PleaseSelectPort"), 
+                        LocalizationManager.GetString("ValidationError"), 
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     DialogResult = DialogResult.None;
                     return;
@@ -255,7 +260,8 @@ namespace MultiSerialMonitor.Forms
                 var hostname = _hostTextBox.Text?.Trim();
                 if (string.IsNullOrWhiteSpace(hostname))
                 {
-                    MessageBox.Show("Please enter a host name or IP address.", "Validation Error", 
+                    MessageBox.Show(LocalizationManager.GetString("PleaseEnterHost"), 
+                        LocalizationManager.GetString("ValidationError"), 
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _hostTextBox.Focus();
                     DialogResult = DialogResult.None;
@@ -264,9 +270,9 @@ namespace MultiSerialMonitor.Forms
                 
                 if (!Utils.ValidationHelper.IsValidHostname(hostname))
                 {
-                    MessageBox.Show("Invalid hostname or IP address.\n" +
-                                   "Please enter a valid hostname (e.g., example.com) or IP address (e.g., 192.168.1.1).", 
-                                   "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(LocalizationManager.GetString("InvalidHostname"), 
+                        LocalizationManager.GetString("ValidationError"), 
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     _hostTextBox.Focus();
                     _hostTextBox.SelectAll();
                     DialogResult = DialogResult.None;
@@ -280,6 +286,82 @@ namespace MultiSerialMonitor.Forms
                     HostName = hostname,
                     Port = (int)_portNumeric.Value
                 };
+            }
+        }
+        
+        public void ApplyLocalization()
+        {
+            Text = LocalizationManager.GetString("AddPortConnection");
+            
+            // Update labels
+            var nameLabel = Controls.OfType<TableLayoutPanel>().FirstOrDefault()?.Controls[0] as Label;
+            if (nameLabel != null)
+                nameLabel.Text = LocalizationManager.GetString("Name");
+                
+            // Update tab pages
+            if (_tabControl != null && _tabControl.TabPages.Count >= 2)
+            {
+                _tabControl.TabPages[0].Text = LocalizationManager.GetString("SerialPort");
+                _tabControl.TabPages[1].Text = LocalizationManager.GetString("Telnet");
+            }
+            
+            // Update Serial Port tab labels
+            var serialTab = _tabControl?.TabPages[0];
+            if (serialTab != null)
+            {
+                var panel = serialTab.Controls[0] as TableLayoutPanel;
+                if (panel != null)
+                {
+                    for (int i = 0; i < panel.RowCount; i++)
+                    {
+                        if (panel.GetControlFromPosition(0, i) is Label label)
+                        {
+                            if (label.Text == "Port:" || label.Text == "พอร์ต:")
+                                label.Text = LocalizationManager.GetString("Port");
+                            else if (label.Text == "Baud Rate:" || label.Text == "อัตราบอด:")
+                                label.Text = LocalizationManager.GetString("BaudRate");
+                            else if (label.Text == "Parity:" || label.Text == "พาริตี้:")
+                                label.Text = LocalizationManager.GetString("Parity");
+                            else if (label.Text == "Data Bits:" || label.Text == "บิตข้อมูล:")
+                                label.Text = LocalizationManager.GetString("DataBits");
+                            else if (label.Text == "Stop Bits:" || label.Text == "บิตหยุด:")
+                                label.Text = LocalizationManager.GetString("StopBits");
+                        }
+                    }
+                }
+            }
+            
+            // Update Telnet tab labels
+            var telnetTab = _tabControl?.TabPages[1];
+            if (telnetTab != null)
+            {
+                var panel = telnetTab.Controls[0] as TableLayoutPanel;
+                if (panel != null)
+                {
+                    for (int i = 0; i < panel.RowCount; i++)
+                    {
+                        if (panel.GetControlFromPosition(0, i) is Label label)
+                        {
+                            if (label.Text == "Host:" || label.Text == "โฮสต์:")
+                                label.Text = LocalizationManager.GetString("Host");
+                            else if (label.Text == "Port:" || label.Text == "พอร์ต:")
+                                label.Text = LocalizationManager.GetString("Port");
+                        }
+                    }
+                }
+            }
+            
+            // Update buttons
+            var buttonPanel = Controls.OfType<TableLayoutPanel>().FirstOrDefault()?.Controls[2] as FlowLayoutPanel;
+            if (buttonPanel != null)
+            {
+                foreach (Button button in buttonPanel.Controls.OfType<Button>())
+                {
+                    if (button.DialogResult == DialogResult.OK)
+                        button.Text = LocalizationManager.GetString("OK");
+                    else if (button.DialogResult == DialogResult.Cancel)
+                        button.Text = LocalizationManager.GetString("Cancel");
+                }
             }
         }
     }

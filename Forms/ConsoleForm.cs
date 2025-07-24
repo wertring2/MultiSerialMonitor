@@ -1,9 +1,10 @@
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Services;
+using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor.Forms
 {
-    public partial class ConsoleForm : Form
+    public partial class ConsoleForm : Form, ILocalizable
     {
         private RichTextBox _consoleOutput;
         private TextBox _commandInput;
@@ -26,11 +27,14 @@ namespace MultiSerialMonitor.Forms
             _monitor = monitor;
             
             InitializeComponents();
+            ApplyLocalization();
             LoadHistory();
             
             _connection.DataReceived += OnDataReceived;
             _connection.StatusChanged += OnStatusChanged;
             _connection.DataCleared += OnDataCleared;
+            
+            LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
         }
         
         private void InitializeComponents()
@@ -256,8 +260,8 @@ namespace MultiSerialMonitor.Forms
             // Validate command length
             if (command.Length > 1000)
             {
-                MessageBox.Show("Command is too long. Maximum 1000 characters allowed.", 
-                    "Invalid Command", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(LocalizationManager.GetString("CommandTooLong"), 
+                    LocalizationManager.GetString("InvalidCommand"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             
@@ -272,7 +276,8 @@ namespace MultiSerialMonitor.Forms
             }
             catch (InvalidOperationException ex)
             {
-                MessageBox.Show($"Cannot send command: {ex.Message}", "Connection Error", 
+                var message = string.Format(LocalizationManager.GetString("CannotSendCommand"), ex.Message);
+                MessageBox.Show(message, LocalizationManager.GetString("ConnectionError"), 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
@@ -323,7 +328,9 @@ namespace MultiSerialMonitor.Forms
             
             using var saveDialog = new SaveFileDialog
             {
-                Filter = "Text files (*.txt)|*.txt|CSV files (*.csv)|*.csv|Log files (*.log)|*.log|Rich Text Format (*.rtf)|*.rtf|All files (*.*)|*.*",
+                Filter = LocalizationManager.CurrentLanguage == Language.Thai
+                    ? "ไฟล์ข้อความ (*.txt)|*.txt|ไฟล์ CSV (*.csv)|*.csv|ไฟล์บันทึก (*.log)|*.log|Rich Text Format (*.rtf)|*.rtf|ไฟล์ทั้งหมด (*.*)|*.*"
+                    : "Text files (*.txt)|*.txt|CSV files (*.csv)|*.csv|Log files (*.log)|*.log|Rich Text Format (*.rtf)|*.rtf|All files (*.*)|*.*",
                 FileName = $"{_connection.Name}_{DateTime.Now:yyyyMMdd_HHmmss}",
                 DefaultExt = "txt"
             };
@@ -337,27 +344,40 @@ namespace MultiSerialMonitor.Forms
                     if (extension == ".csv")
                     {
                         // Export as CSV with timestamp, line number, and data
-                        var csvLines = new List<string> { "Timestamp,Line Number,Data" };
-                        int lineNumber = 1;
-                        foreach (var line in _connection.OutputHistory)
+                        // Use UTF-8 with BOM for proper Thai support
+                        var encoding = new System.Text.UTF8Encoding(true);
+                        using (var writer = new StreamWriter(saveDialog.FileName, false, encoding))
                         {
-                            var timestamp = "";
-                            var data = line;
-                            
-                            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(.*?)\](.*)");
-                            if (match.Success)
+                            // Write header with localized column names
+                            if (LocalizationManager.CurrentLanguage == Language.Thai)
                             {
-                                timestamp = match.Groups[1].Value;
-                                data = match.Groups[2].Value.Trim();
+                                writer.WriteLine("เวลา,บรรทัดที่,ข้อมูล");
+                            }
+                            else
+                            {
+                                writer.WriteLine("Timestamp,Line Number,Data");
                             }
                             
-                            timestamp = $"\"{timestamp}\"";
-                            data = $"\"{data.Replace("\"", "\"\"")}\"";
-                            
-                            csvLines.Add($"{timestamp},{lineNumber},{data}");
-                            lineNumber++;
+                            int lineNumber = 1;
+                            foreach (var line in _connection.OutputHistory)
+                            {
+                                var timestamp = "";
+                                var data = line;
+                                
+                                var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(.*?)\](.*)");
+                                if (match.Success)
+                                {
+                                    timestamp = match.Groups[1].Value;
+                                    data = match.Groups[2].Value.Trim();
+                                }
+                                
+                                timestamp = $"\"{timestamp}\"";
+                                data = $"\"{data.Replace("\"", "\"\"")}\"";
+                                
+                                writer.WriteLine($"{timestamp},{lineNumber},{data}");
+                                lineNumber++;
+                            }
                         }
-                        File.WriteAllLines(saveDialog.FileName, csvLines);
                     }
                     else if (extension == ".rtf")
                     {
@@ -370,13 +390,23 @@ namespace MultiSerialMonitor.Forms
                         File.WriteAllLines(saveDialog.FileName, _connection.OutputHistory);
                     }
                     
-                    MessageBox.Show($"Data exported successfully to:\n{saveDialog.FileName}\n\nTotal lines: {_connection.OutputHistory.Count}", 
-                        "Export Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    var successMessage = LocalizationManager.CurrentLanguage == Language.Thai
+                        ? $"ส่งออกข้อมูลสำเร็จไปที่:\n{saveDialog.FileName}\n\nจำนวนบรรทัดทั้งหมด: {_connection.OutputHistory.Count}"
+                        : $"Data exported successfully to:\n{saveDialog.FileName}\n\nTotal lines: {_connection.OutputHistory.Count}";
+                    var successTitle = LocalizationManager.CurrentLanguage == Language.Thai
+                        ? "ส่งออกสำเร็จ"
+                        : "Export Success";
+                    MessageBox.Show(successMessage, successTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error exporting data: {ex.Message}", 
-                        "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    var errorMessage = LocalizationManager.CurrentLanguage == Language.Thai
+                        ? $"เกิดข้อผิดพลาดในการส่งออกข้อมูล: {ex.Message}"
+                        : $"Error exporting data: {ex.Message}";
+                    var errorTitle = LocalizationManager.CurrentLanguage == Language.Thai
+                        ? "ข้อผิดพลาดการส่งออก"
+                        : "Export Error";
+                    MessageBox.Show(errorMessage, errorTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
@@ -399,6 +429,41 @@ namespace MultiSerialMonitor.Forms
             _connection.StatusChanged -= OnStatusChanged;
             _connection.DataCleared -= OnDataCleared;
             base.OnFormClosed(e);
+        }
+        
+        public void ApplyLocalization()
+        {
+            Text = $"{LocalizationManager.GetString("Console")} - {_connection.Name}";
+            
+            // Update button texts
+            if (_connectButton != null)
+                _connectButton.Text = LocalizationManager.GetString("Connect");
+            if (_disconnectButton != null)
+                _disconnectButton.Text = LocalizationManager.GetString("Disconnect");
+            if (_clearButton != null)
+                _clearButton.Text = LocalizationManager.GetString("Clear");
+            if (_toggleLineNumbersButton != null)
+                _toggleLineNumbersButton.Text = LocalizationManager.GetString("LineNumbers");
+            if (_sendButton != null)
+                _sendButton.Text = LocalizationManager.GetString("Send");
+                
+            // Update status label
+            if (_statusLabel != null)
+            {
+                var statusText = LocalizationManager.GetString("Status");
+                var statusValue = LocalizationManager.GetString(_connection.Status.ToString());
+                _statusLabel.Text = $"{statusText}: {statusValue}";
+            }
+            
+            // Update export button
+            var toolbar = Controls.OfType<ToolStrip>().FirstOrDefault();
+            if (toolbar != null)
+            {
+                var exportButton = toolbar.Items.OfType<ToolStripButton>()
+                    .FirstOrDefault(b => b.Text == "Export Data" || b.Text == "ส่งออกข้อมูล");
+                if (exportButton != null)
+                    exportButton.Text = LocalizationManager.GetString("ExportData");
+            }
         }
     }
 }
