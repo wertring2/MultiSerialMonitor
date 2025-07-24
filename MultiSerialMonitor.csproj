@@ -11,6 +11,9 @@
 
   <ItemGroup>
     <Content Include="favicon.ico" />
+    <Content Include="QW LOGO Qwave.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

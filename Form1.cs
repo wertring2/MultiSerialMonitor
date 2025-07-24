@@ -48,7 +48,7 @@ namespace MultiSerialMonitor
         
         private void InitializeCustomComponents()
         {
-            Text = "Multi Serial Monitor";
+            Text = "Multi Serial Monitor - by Q WAVE COMPANY LIMITED";
             Size = new Size(1200, 800);
             MinimumSize = new Size(800, 600);
             StartPosition = FormStartPosition.CenterScreen;
@@ -163,6 +163,15 @@ namespace MultiSerialMonitor
             };
             _darkModeButton.Click += OnDarkModeClick;
             
+            // About button
+            var aboutButton = new ToolStripButton
+            {
+                Text = "About",
+                DisplayStyle = ToolStripItemDisplayStyle.Text,
+                ToolTipText = "About Multi Serial Monitor"
+            };
+            aboutButton.Click += OnAboutClick;
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
@@ -177,7 +186,9 @@ namespace MultiSerialMonitor
                 new ToolStripSeparator(),
                 _darkModeButton,
                 new ToolStripSeparator(),
-                _languageDropDown
+                _languageDropDown,
+                new ToolStripSeparator(),
+                aboutButton
             });
             
             // Ports panel
@@ -196,7 +207,17 @@ namespace MultiSerialMonitor
             {
                 Text = "Ready"
             };
+            
+            // Company credit in status bar
+            var companyLabel = new ToolStripStatusLabel
+            {
+                Text = "© Q WAVE COMPANY LIMITED",
+                Spring = true,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            
             _statusStrip.Items.Add(_statusLabel);
+            _statusStrip.Items.Add(companyLabel);
             
             Controls.Add(_portsPanel);
             Controls.Add(_toolbar);
@@ -1456,6 +1477,12 @@ namespace MultiSerialMonitor
             SaveAppSettings();
             
             _statusLabel.Text = $"Switched to {ThemeManager.CurrentTheme} mode";
+        }
+        
+        private void OnAboutClick(object? sender, EventArgs e)
+        {
+            using var aboutForm = new AboutForm();
+            aboutForm.ShowDialog(this);
         }
     }
 }
