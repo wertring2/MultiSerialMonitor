@@ -112,6 +112,8 @@ namespace MultiSerialMonitor
             panel.ConnectRequested += async (s, e) => await ConnectPortAsync(connection);
             panel.DisconnectRequested += async (s, e) => await DisconnectPortAsync(connection);
             panel.RemoveRequested += (s, e) => RemovePort(connection);
+            panel.ConfigureDetectionRequested += (s, e) => OnPortConfigureDetectionRequested(connection);
+            panel.ViewDetectionsRequested += (s, e) => OnPortViewDetectionsRequested(connection);
             
             _portPanels[connection.Id] = panel;
             _portsPanel.Controls.Add(panel);
@@ -323,6 +325,18 @@ namespace MultiSerialMonitor
             {
                 panel.Invalidate();
             }
+        }
+        
+        private void OnPortConfigureDetectionRequested(PortConnection connection)
+        {
+            using var configForm = new DetectionConfigForm(connection);
+            configForm.ShowDialog(this);
+        }
+        
+        private void OnPortViewDetectionsRequested(PortConnection connection)
+        {
+            using var viewForm = new DetectionViewForm(connection);
+            viewForm.ShowDialog(this);
         }
         
         private async void OnRemoveAllClick(object? sender, EventArgs e)

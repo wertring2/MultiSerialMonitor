@@ -8,8 +8,10 @@ namespace MultiSerialMonitor.Controls
         private Label _statusLabel;
         private Label _lastLineLabel;
         private Label _statsLabel;
+        private Label _detectionLabel;
         private Button _expandButton;
         private Button _deleteButton;
+        private Button _configDetectionButton;
         private Panel _statusIndicator;
         private ContextMenuStrip _contextMenu;
         private int _lineCount = 0;
@@ -22,6 +24,8 @@ namespace MultiSerialMonitor.Controls
         public event EventHandler? RemoveRequested;
         public event EventHandler? ConnectRequested;
         public event EventHandler? DisconnectRequested;
+        public event EventHandler? ConfigureDetectionRequested;
+        public event EventHandler? ViewDetectionsRequested;
         
         public PortPanel(PortConnection connection)
         {
@@ -31,11 +35,12 @@ namespace MultiSerialMonitor.Controls
             Connection.DataReceived += OnDataReceived;
             Connection.StatusChanged += OnStatusChanged;
             Connection.ErrorOccurred += OnErrorOccurred;
+            Connection.PatternDetected += OnPatternDetected;
         }
         
         private void InitializeComponents()
         {
-            Height = 140; // Increased height to accommodate stats
+            Height = 160; // Increased height to accommodate detection info
             BorderStyle = BorderStyle.FixedSingle;
             Padding = new Padding(10);
             BackColor = Color.FromArgb(245, 245, 245);
@@ -92,6 +97,23 @@ namespace MultiSerialMonitor.Controls
                 Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
             };
             
+            // Detection label
+            _detectionLabel = new Label
+            {
+                Text = "Detections: 0",
+                Font = new Font("Segoe UI", 8, FontStyle.Bold),
+                ForeColor = Color.DarkRed,
+                Location = new Point(10, 115),
+                Size = new Size(Width - 160, 20),
+                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
+                Cursor = Cursors.Hand
+            };
+            _detectionLabel.Click += (s, e) => 
+            {
+                if (Connection.DetectionMatches.Count > 0)
+                    ViewDetectionsRequested?.Invoke(this, EventArgs.Empty);
+            };
+            
             // Expand button
             _expandButton = new Button
             {
@@ -104,6 +126,20 @@ namespace MultiSerialMonitor.Controls
                 Cursor = Cursors.Hand
             };
             _expandButton.Click += (s, e) => ExpandRequested?.Invoke(this, EventArgs.Empty);
+            
+            // Configure detection button
+            _configDetectionButton = new Button
+            {
+                Text = "⚙",
+                Size = new Size(25, 23),
+                Location = new Point(Width - 40, 115),
+                Anchor = AnchorStyles.Right | AnchorStyles.Top,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.LightGray,
+                Font = new Font("Arial", 10),
+                Cursor = Cursors.Hand
+            };
+            _configDetectionButton.Click += (s, e) => ConfigureDetectionRequested?.Invoke(this, EventArgs.Empty);
             
             // Delete button
             _deleteButton = new Button
@@ -126,6 +162,8 @@ namespace MultiSerialMonitor.Controls
                 _statusLabel, 
                 _lastLineLabel,
                 _statsLabel,
+                _detectionLabel,
+                _configDetectionButton,
                 _expandButton,
                 _deleteButton 
             });
@@ -159,6 +197,7 @@ namespace MultiSerialMonitor.Controls
             var toolTip = new ToolTip();
             toolTip.SetToolTip(_expandButton, "Open console view");
             toolTip.SetToolTip(_deleteButton, "Remove this port");
+            toolTip.SetToolTip(_configDetectionButton, "Configure Detection Patterns");
             
             // Add hover effects
             MouseEnter += (s, e) => BackColor = Color.FromArgb(235, 235, 235);
@@ -277,7 +316,9 @@ namespace MultiSerialMonitor.Controls
                 _lineCount = 0;
                 _packageCount = 0;
                 _lastTimestamp = null;
+                Connection.DetectionMatches.Clear();
                 UpdateStatsDisplay();
+                UpdateDetectionDisplay();
             }
             
             _statusLabel.Text = status.ToString();
@@ -347,6 +388,55 @@ namespace MultiSerialMonitor.Controls
             };
         }
         
+        private void OnPatternDetected(object? sender, DetectionMatch match)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() => OnPatternDetected(sender, match));
+                return;
+            }
+            
+            UpdateDetectionDisplay();
+            
+            // Flash the detection label to indicate new detection
+            var originalColor = _detectionLabel.ForeColor;
+            _detectionLabel.ForeColor = Color.Red;
+            Task.Delay(500).ContinueWith(_ => 
+            {
+                if (!IsDisposed)
+                {
+                    Invoke(() => _detectionLabel.ForeColor = originalColor);
+                }
+            });
+        }
+        
+        private void UpdateDetectionDisplay()
+        {
+            int detectionCount = Connection.DetectionMatches.Count;
+            _detectionLabel.Text = $"Detections: {detectionCount}";
+            
+            if (detectionCount > 0)
+            {
+                _detectionLabel.ForeColor = Color.DarkRed;
+                _detectionLabel.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+                
+                // Show tooltip with recent detections
+                var recentDetections = Connection.DetectionMatches
+                    .OrderByDescending(d => d.Timestamp)
+                    .Take(3)
+                    .Select(d => $"{d.PatternName}: {d.MatchedText}")
+                    .ToList();
+                
+                var toolTip = new ToolTip();
+                toolTip.SetToolTip(_detectionLabel, string.Join("\n", recentDetections) + "\nClick to view all");
+            }
+            else
+            {
+                _detectionLabel.ForeColor = Color.Gray;
+                _detectionLabel.Font = new Font("Segoe UI", 8);
+            }
+        }
+        
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -354,6 +444,7 @@ namespace MultiSerialMonitor.Controls
                 Connection.DataReceived -= OnDataReceived;
                 Connection.StatusChanged -= OnStatusChanged;
                 Connection.ErrorOccurred -= OnErrorOccurred;
+                Connection.PatternDetected -= OnPatternDetected;
             }
             base.Dispose(disposing);
         }

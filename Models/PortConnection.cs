@@ -1,4 +1,5 @@
 using System.IO.Ports;
+using System.Text.RegularExpressions;
 
 namespace MultiSerialMonitor.Models
 {
@@ -41,10 +42,12 @@ namespace MultiSerialMonitor.Models
         public DateTime? LastErrorTime { get; set; }
         public int ConnectionAttempts { get; set; }
         public ConnectionConfig Config { get; set; } = new ConnectionConfig();
+        public List<DetectionMatch> DetectionMatches { get; } = new List<DetectionMatch>();
         
         public event EventHandler<string>? DataReceived;
         public event EventHandler<ConnectionStatus>? StatusChanged;
         public event EventHandler<string>? ErrorOccurred;
+        public event EventHandler<DetectionMatch>? PatternDetected;
         
         public void OnDataReceived(string data)
         {
@@ -70,7 +73,69 @@ namespace MultiSerialMonitor.Models
             }
             
             LastActivity = DateTime.Now;
+            
+            // Check for pattern matches
+            CheckForPatternMatches(data);
+            
             DataReceived?.Invoke(this, data);
+        }
+        
+        private void CheckForPatternMatches(string data)
+        {
+            if (Config.DetectionPatterns == null || Config.DetectionPatterns.Count == 0)
+                return;
+                
+            foreach (var pattern in Config.DetectionPatterns.Where(p => p.IsEnabled))
+            {
+                bool isMatch = false;
+                string matchedText = "";
+                
+                if (pattern.IsRegex)
+                {
+                    try
+                    {
+                        var regexOptions = pattern.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase;
+                        var regex = new Regex(pattern.Pattern, regexOptions);
+                        var match = regex.Match(data);
+                        if (match.Success)
+                        {
+                            isMatch = true;
+                            matchedText = match.Value;
+                        }
+                    }
+                    catch
+                    {
+                        // Invalid regex pattern, skip
+                        continue;
+                    }
+                }
+                else
+                {
+                    // Simple string contains check
+                    var comparison = pattern.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                    if (data.Contains(pattern.Pattern, comparison))
+                    {
+                        isMatch = true;
+                        matchedText = pattern.Pattern;
+                    }
+                }
+                
+                if (isMatch)
+                {
+                    var detectionMatch = new DetectionMatch
+                    {
+                        PatternId = pattern.Id,
+                        PatternName = pattern.Name,
+                        MatchedText = matchedText,
+                        FullLine = data,
+                        Timestamp = DateTime.Now,
+                        LineNumber = OutputHistory.Count
+                    };
+                    
+                    DetectionMatches.Add(detectionMatch);
+                    PatternDetected?.Invoke(this, detectionMatch);
+                }
+            }
         }
         
         public void SetStatus(ConnectionStatus status)

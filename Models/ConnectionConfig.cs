@@ -7,5 +7,6 @@ namespace MultiSerialMonitor.Models
         public int ConnectionTimeoutMs { get; set; } = 5000;
         public bool AutoReconnect { get; set; } = true;
         public int ReconnectIntervalMs { get; set; } = 5000;
+        public List<DetectionPattern> DetectionPatterns { get; set; } = new List<DetectionPattern>();
     }
 }
