@@ -1,6 +1,7 @@
 using System.IO.Ports;
 using System.Text;
 using MultiSerialMonitor.Models;
+using MultiSerialMonitor.Exceptions;
 
 namespace MultiSerialMonitor.Services
 {
@@ -48,6 +49,13 @@ namespace MultiSerialMonitor.Services
                     await ConnectWithTimeoutAsync();
                     return; // Success
                 }
+                catch (PortNotFoundException ex)
+                {
+                    // Re-throw PortNotFoundException immediately without retries
+                    Connection.SetStatus(ConnectionStatus.Error);
+                    Connection.SetError(ex.Message);
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     lastException = ex;
@@ -78,7 +86,7 @@ namespace MultiSerialMonitor.Services
                 var availablePorts = SerialPort.GetPortNames();
                 if (!availablePorts.Contains(Connection.PortName))
                 {
-                    throw new Exception($"Port {Connection.PortName} not found. Available ports: {string.Join(", ", availablePorts)}");
+                    throw new PortNotFoundException($"Port {Connection.PortName} not found. Available ports: {string.Join(", ", availablePorts)}");
                 }
                 
                 // Skip availability check here as it might give false positives

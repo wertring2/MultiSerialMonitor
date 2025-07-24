@@ -3,6 +3,7 @@ using MultiSerialMonitor.Controls;
 using MultiSerialMonitor.Forms;
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Services;
+using MultiSerialMonitor.Exceptions;
 
 namespace MultiSerialMonitor
 {
@@ -150,19 +151,33 @@ namespace MultiSerialMonitor
             return false;
         }
         
-        private async Task AddPortConnectionAsync(PortConnection connection)
+        private async Task<bool> AddPortConnectionAsync(PortConnection connection, bool isFromProfile = false)
         {
             // Check if port is already in use by another connection in this application
             if (connection.Type == ConnectionType.SerialPort && IsPortInUse(connection.PortName, connection.Type, out string existingName))
             {
-                MessageBox.Show(
-                    $"Port {connection.PortName} is already configured for connection '{existingName}'.\n\n" +
-                    "Each serial port can only be used by one connection at a time.\n" +
-                    "Please choose a different port or remove the existing connection first.",
-                    "Port Already In Use",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-                return;
+                if (!isFromProfile)
+                {
+                    MessageBox.Show(
+                        $"Port {connection.PortName} is already configured for connection '{existingName}'.\n\n" +
+                        "Each serial port can only be used by one connection at a time.\n" +
+                        "Please choose a different port or remove the existing connection first.",
+                        "Port Already In Use",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+                return false;
+            }
+            
+            // Check if serial port exists before creating monitor (for profiles only)
+            if (isFromProfile && connection.Type == ConnectionType.SerialPort)
+            {
+                var availablePorts = System.IO.Ports.SerialPort.GetPortNames();
+                if (!availablePorts.Contains(connection.PortName))
+                {
+                    // Don't create the connection if port doesn't exist
+                    return false;
+                }
             }
             
             // Create monitor
@@ -196,12 +211,33 @@ namespace MultiSerialMonitor
             {
                 await monitor.ConnectAsync();
                 _statusLabel.Text = $"Connected to {connection.Name}";
+                return true;
+            }
+            catch (PortNotFoundException pnfEx)
+            {
+                // For profiles, we should have already checked this above
+                // For manual additions, re-throw to show the dialog
+                if (!isFromProfile)
+                {
+                    throw;
+                }
+                
+                // This shouldn't happen as we check above, but just in case
+                await RemovePortAsync(connection);
+                return false;
             }
             catch (Exception ex)
             {
                 _statusLabel.Text = $"Failed to connect to {connection.Name}";
                 
-                // Show options to user
+                if (isFromProfile)
+                {
+                    // For profiles, just skip failed connections
+                    await RemovePortAsync(connection);
+                    return false;
+                }
+                
+                // Show options to user for manual additions
                 var result = MessageBox.Show(
                     $"Failed to connect to {connection.Name}.\n\n" +
                     $"Error: {ex.Message}\n\n" +
@@ -221,25 +257,28 @@ namespace MultiSerialMonitor
                         {
                             await monitor.ConnectAsync();
                             _statusLabel.Text = $"Connected to {connection.Name}";
+                            return true;
                         }
                         catch
                         {
                             _statusLabel.Text = $"Still failed to connect to {connection.Name}";
+                            return true; // Keep the port even if connection failed
                         }
-                        break;
                     
                     case DialogResult.Abort:
                         // Remove the port
                         await RemovePortAsync(connection);
                         _statusLabel.Text = $"Removed {connection.Name}";
-                        break;
+                        return false;
                     
                     case DialogResult.Ignore:
                         // Keep port in disconnected state
                         _statusLabel.Text = $"Port {connection.Name} added but not connected";
-                        break;
+                        return true;
                 }
             }
+            
+            return true;
         }
         
         private void OnPortExpandRequested(object? sender, EventArgs e)
@@ -528,14 +567,37 @@ namespace MultiSerialMonitor
             try
             {
                 var savedConnections = _configManager.LoadConfiguration();
+                var skippedPorts = new List<string>();
+                var loadedCount = 0;
+                
                 foreach (var connection in savedConnections)
                 {
-                    await AddPortConnectionAsync(connection);
+                    if (await AddPortConnectionAsync(connection, isFromProfile: true))
+                    {
+                        loadedCount++;
+                    }
+                    else if (connection.Type == ConnectionType.SerialPort)
+                    {
+                        skippedPorts.Add($"{connection.Name} ({connection.PortName})");
+                    }
                 }
                 
-                if (savedConnections.Count > 0)
+                if (loadedCount > 0)
                 {
-                    _statusLabel.Text = $"Loaded {savedConnections.Count} saved connection(s)";
+                    _statusLabel.Text = $"Loaded {loadedCount} saved connection(s)";
+                }
+                
+                // Show warning if some ports were skipped during startup
+                if (skippedPorts.Count > 0)
+                {
+                    MessageBox.Show(
+                        $"The following saved ports could not be loaded:\n\n" +
+                        string.Join("\n", skippedPorts.Select(p => $"• {p}")) +
+                        "\n\nThese ports are not currently available. " +
+                        "They may be unplugged or in use by another application.",
+                        "Some Ports Not Available",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
             }
             catch (Exception ex)
@@ -600,12 +662,35 @@ namespace MultiSerialMonitor
                 }
                 
                 var connections = _configManager.LoadProfile(profileName);
+                var skippedPorts = new List<string>();
+                var loadedCount = 0;
+                
                 foreach (var connection in connections)
                 {
-                    await AddPortConnectionAsync(connection);
+                    if (await AddPortConnectionAsync(connection, isFromProfile: true))
+                    {
+                        loadedCount++;
+                    }
+                    else if (connection.Type == ConnectionType.SerialPort)
+                    {
+                        skippedPorts.Add($"{connection.Name} ({connection.PortName})");
+                    }
                 }
                 
-                _statusLabel.Text = $"Loaded profile '{profileName}' with {connections.Count} connection(s)";
+                _statusLabel.Text = $"Loaded profile '{profileName}' with {loadedCount} connection(s)";
+                
+                // Show warning if some ports were skipped
+                if (skippedPorts.Count > 0)
+                {
+                    MessageBox.Show(
+                        $"The following ports from the profile could not be loaded:\n\n" +
+                        string.Join("\n", skippedPorts.Select(p => $"• {p}")) +
+                        "\n\nThese ports are not currently available. " +
+                        "They may be unplugged or in use by another application.",
+                        "Some Ports Not Available",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
             }
             catch (Exception ex)
             {
