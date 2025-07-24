@@ -27,6 +27,7 @@ namespace MultiSerialMonitor.Forms
             
             _connection.DataReceived += OnDataReceived;
             _connection.StatusChanged += OnStatusChanged;
+            _connection.DataCleared += OnDataCleared;
         }
         
         private void InitializeComponents()
@@ -242,10 +243,22 @@ namespace MultiSerialMonitor.Forms
             }
         }
         
+        private void OnDataCleared(object? sender, EventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() => OnDataCleared(sender, e));
+                return;
+            }
+            
+            _consoleOutput.Clear();
+        }
+        
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _connection.DataReceived -= OnDataReceived;
             _connection.StatusChanged -= OnStatusChanged;
+            _connection.DataCleared -= OnDataCleared;
             base.OnFormClosed(e);
         }
     }

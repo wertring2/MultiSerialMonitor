@@ -150,5 +150,15 @@ namespace MultiSerialMonitor.Models
             LastErrorTime = DateTime.Now;
             ErrorOccurred?.Invoke(this, error);
         }
+        
+        public void ClearData()
+        {
+            OutputHistory.Clear();
+            DetectionMatches.Clear();
+            LastLine = "";
+            DataCleared?.Invoke(this, EventArgs.Empty);
+        }
+        
+        public event EventHandler? DataCleared;
     }
 }

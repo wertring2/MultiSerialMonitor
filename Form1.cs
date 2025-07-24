@@ -53,11 +53,19 @@ namespace MultiSerialMonitor
             };
             removeAllButton.Click += OnRemoveAllClick;
             
+            var clearAllButton = new ToolStripButton
+            {
+                Text = "Clear All Data",
+                DisplayStyle = ToolStripItemDisplayStyle.Text
+            };
+            clearAllButton.Click += OnClearAllClick;
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
                 refreshButton,
                 new ToolStripSeparator(),
+                clearAllButton,
                 removeAllButton 
             });
             
@@ -114,6 +122,7 @@ namespace MultiSerialMonitor
             panel.RemoveRequested += (s, e) => RemovePort(connection);
             panel.ConfigureDetectionRequested += (s, e) => OnPortConfigureDetectionRequested(connection);
             panel.ViewDetectionsRequested += (s, e) => OnPortViewDetectionsRequested(connection);
+            panel.ClearDataRequested += (s, e) => OnPortClearDataRequested(connection);
             
             _portPanels[connection.Id] = panel;
             _portsPanel.Controls.Add(panel);
@@ -337,6 +346,40 @@ namespace MultiSerialMonitor
         {
             using var viewForm = new DetectionViewForm(connection);
             viewForm.ShowDialog(this);
+        }
+        
+        private void OnPortClearDataRequested(PortConnection connection)
+        {
+            var result = MessageBox.Show($"Are you sure you want to clear all data for {connection.Name}?", 
+                "Confirm Clear", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                connection.ClearData();
+                _statusLabel.Text = $"Cleared data for {connection.Name}";
+            }
+        }
+        
+        private void OnClearAllClick(object? sender, EventArgs e)
+        {
+            if (_portPanels.Count == 0)
+            {
+                MessageBox.Show("No ports to clear.", "Information", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            var result = MessageBox.Show("Are you sure you want to clear all data for all ports?", 
+                "Confirm Clear All", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            
+            if (result == DialogResult.Yes)
+            {
+                foreach (var connection in _monitors.Keys.Select(id => _portPanels[id].Connection))
+                {
+                    connection.ClearData();
+                }
+                _statusLabel.Text = "Cleared all data";
+            }
         }
         
         private async void OnRemoveAllClick(object? sender, EventArgs e)

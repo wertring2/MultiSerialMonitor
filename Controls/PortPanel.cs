@@ -12,6 +12,7 @@ namespace MultiSerialMonitor.Controls
         private Button _expandButton;
         private Button _deleteButton;
         private Button _configDetectionButton;
+        private Button _clearButton;
         private Panel _statusIndicator;
         private ContextMenuStrip _contextMenu;
         private int _lineCount = 0;
@@ -26,6 +27,7 @@ namespace MultiSerialMonitor.Controls
         public event EventHandler? DisconnectRequested;
         public event EventHandler? ConfigureDetectionRequested;
         public event EventHandler? ViewDetectionsRequested;
+        public event EventHandler? ClearDataRequested;
         
         public PortPanel(PortConnection connection)
         {
@@ -36,6 +38,7 @@ namespace MultiSerialMonitor.Controls
             Connection.StatusChanged += OnStatusChanged;
             Connection.ErrorOccurred += OnErrorOccurred;
             Connection.PatternDetected += OnPatternDetected;
+            Connection.DataCleared += OnDataCleared;
         }
         
         private void InitializeComponents()
@@ -127,6 +130,19 @@ namespace MultiSerialMonitor.Controls
             };
             _expandButton.Click += (s, e) => ExpandRequested?.Invoke(this, EventArgs.Empty);
             
+            // Clear button
+            _clearButton = new Button
+            {
+                Text = "Clear",
+                Size = new Size(50, 23),
+                Location = new Point(Width - 205, 10),
+                Anchor = AnchorStyles.Right | AnchorStyles.Top,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.LightBlue,
+                Cursor = Cursors.Hand
+            };
+            _clearButton.Click += (s, e) => ClearDataRequested?.Invoke(this, EventArgs.Empty);
+            
             // Configure detection button
             _configDetectionButton = new Button
             {
@@ -164,6 +180,7 @@ namespace MultiSerialMonitor.Controls
                 _statsLabel,
                 _detectionLabel,
                 _configDetectionButton,
+                _clearButton,
                 _expandButton,
                 _deleteButton 
             });
@@ -176,12 +193,17 @@ namespace MultiSerialMonitor.Controls
             var disconnectItem = new ToolStripMenuItem("Disconnect");
             disconnectItem.Click += (s, e) => DisconnectRequested?.Invoke(this, EventArgs.Empty);
             
+            var clearItem = new ToolStripMenuItem("Clear Data");
+            clearItem.Click += (s, e) => ClearDataRequested?.Invoke(this, EventArgs.Empty);
+            
             var removeItem = new ToolStripMenuItem("Remove");
             removeItem.Click += (s, e) => RemoveRequested?.Invoke(this, EventArgs.Empty);
             
             _contextMenu.Items.AddRange(new ToolStripItem[] {
                 connectItem,
                 disconnectItem,
+                new ToolStripSeparator(),
+                clearItem,
                 new ToolStripSeparator(),
                 removeItem
             });
@@ -198,6 +220,7 @@ namespace MultiSerialMonitor.Controls
             toolTip.SetToolTip(_expandButton, "Open console view");
             toolTip.SetToolTip(_deleteButton, "Remove this port");
             toolTip.SetToolTip(_configDetectionButton, "Configure Detection Patterns");
+            toolTip.SetToolTip(_clearButton, "Clear all data for this port");
             
             // Add hover effects
             MouseEnter += (s, e) => BackColor = Color.FromArgb(235, 235, 235);
@@ -437,6 +460,23 @@ namespace MultiSerialMonitor.Controls
             }
         }
         
+        private void OnDataCleared(object? sender, EventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(() => OnDataCleared(sender, e));
+                return;
+            }
+            
+            // Reset counters and display
+            _lineCount = 0;
+            _packageCount = 0;
+            _lastTimestamp = null;
+            _lastLineLabel.Text = "";
+            UpdateStatsDisplay();
+            UpdateDetectionDisplay();
+        }
+        
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -445,6 +485,7 @@ namespace MultiSerialMonitor.Controls
                 Connection.StatusChanged -= OnStatusChanged;
                 Connection.ErrorOccurred -= OnErrorOccurred;
                 Connection.PatternDetected -= OnPatternDetected;
+                Connection.DataCleared -= OnDataCleared;
             }
             base.Dispose(disposing);
         }
