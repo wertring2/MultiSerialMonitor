@@ -15,42 +15,42 @@ namespace MultiSerialMonitor.Forms
         private StatusStrip _statusStrip;
         private ToolStripStatusLabel _statusLabel;
         private ToolStripButton _toggleLineNumbersButton;
-        
+
         private readonly PortConnection _connection;
         private readonly IPortMonitor _monitor;
         private int _lineNumber = 1;
         private bool _showLineNumbers = true;
-        
+
         public ConsoleForm(PortConnection connection, IPortMonitor monitor)
         {
             _connection = connection;
             _monitor = monitor;
-            
+
             InitializeComponents();
             ApplyTheme();
             ApplyLocalization();
             LoadHistory();
-            
+
             _connection.DataReceived += OnDataReceived;
             _connection.StatusChanged += OnStatusChanged;
             _connection.DataCleared += OnDataCleared;
-            
+
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
             ThemeManager.ThemeChanged += (s, e) => ApplyTheme();
         }
-        
+
         private void InitializeComponents()
         {
             Text = $"Console - {_connection.Name}";
             Size = new Size(900, 700);
             MinimumSize = new Size(600, 400);
             StartPosition = FormStartPosition.CenterScreen;
-            
+
             // Enable double buffering
-            SetStyle(ControlStyles.AllPaintingInWmPaint | 
-                    ControlStyles.UserPaint | 
+            SetStyle(ControlStyles.AllPaintingInWmPaint |
+                    ControlStyles.UserPaint |
                     ControlStyles.DoubleBuffer, true);
-            
+
             // Console output
             _consoleOutput = new RichTextBox
             {
@@ -59,7 +59,7 @@ namespace MultiSerialMonitor.Forms
                 ReadOnly = true,
                 WordWrap = false
             };
-            
+
             // Bottom panel for input
             var bottomPanel = new Panel
             {
@@ -67,7 +67,7 @@ namespace MultiSerialMonitor.Forms
                 Height = 35,
                 Padding = new Padding(5)
             };
-            
+
             _commandInput = new TextBox
             {
                 Dock = DockStyle.Fill,
@@ -75,7 +75,7 @@ namespace MultiSerialMonitor.Forms
                 Enabled = _monitor.IsConnected
             };
             _commandInput.KeyPress += OnCommandInputKeyPress;
-            
+
             _sendButton = new Button
             {
                 Text = "Send",
@@ -84,43 +84,43 @@ namespace MultiSerialMonitor.Forms
                 Enabled = _monitor.IsConnected
             };
             _sendButton.Click += OnSendClick;
-            
+
             bottomPanel.Controls.Add(_commandInput);
             bottomPanel.Controls.Add(_sendButton);
-            
+
             // Top toolbar
             var toolbar = new ToolStrip();
-            
+
             _connectButton = new ToolStripButton
             {
                 Text = "Connect",
                 Enabled = !_monitor.IsConnected
             };
             _connectButton.Click += async (s, e) => await ConnectAsync();
-            
+
             _disconnectButton = new ToolStripButton
             {
                 Text = "Disconnect",
                 Enabled = _monitor.IsConnected
             };
             _disconnectButton.Click += async (s, e) => await DisconnectAsync();
-            
+
             _clearButton = new ToolStripButton
             {
                 Text = "Clear"
             };
-            _clearButton.Click += (s, e) => 
+            _clearButton.Click += (s, e) =>
             {
                 _consoleOutput.Clear();
                 _lineNumber = 1;
             };
-            
+
             var exportButton = new ToolStripButton
             {
                 Text = "Export Data"
             };
             exportButton.Click += OnExportClick;
-            
+
             _toggleLineNumbersButton = new ToolStripButton
             {
                 Text = "Line #",
@@ -135,16 +135,16 @@ namespace MultiSerialMonitor.Forms
                 _lineNumber = 1;
                 LoadHistory();
             };
-            
-            toolbar.Items.AddRange(new ToolStripItem[] { 
-                _connectButton, 
-                _disconnectButton, 
-                new ToolStripSeparator(), 
+
+            toolbar.Items.AddRange(new ToolStripItem[] {
+                _connectButton,
+                _disconnectButton,
+                new ToolStripSeparator(),
                 _toggleLineNumbersButton,
                 exportButton,
-                _clearButton 
+                _clearButton
             });
-            
+
             // Status strip
             _statusStrip = new StatusStrip();
             _statusLabel = new ToolStripStatusLabel
@@ -152,13 +152,13 @@ namespace MultiSerialMonitor.Forms
                 Text = $"Status: {_connection.Status}"
             };
             _statusStrip.Items.Add(_statusLabel);
-            
+
             Controls.Add(_consoleOutput);
             Controls.Add(bottomPanel);
             Controls.Add(toolbar);
             Controls.Add(_statusStrip);
         }
-        
+
         private void LoadHistory()
         {
             _lineNumber = 1; // Reset line numbers when loading history
@@ -168,7 +168,7 @@ namespace MultiSerialMonitor.Forms
             }
             _consoleOutput.ScrollToCaret();
         }
-        
+
         private void OnDataReceived(object? sender, string data)
         {
             if (InvokeRequired)
@@ -176,11 +176,11 @@ namespace MultiSerialMonitor.Forms
                 Invoke(() => OnDataReceived(sender, data));
                 return;
             }
-            
-            Color color = data.StartsWith(">") ? ThemeManager.Colors.ConsoleCommand : 
-                         data.StartsWith("Error") ? ThemeManager.Colors.ConsoleError : 
+
+            Color color = data.StartsWith(">") ? ThemeManager.Colors.ConsoleCommand :
+                         data.StartsWith("Error") ? ThemeManager.Colors.ConsoleError :
                          ThemeManager.Colors.ConsoleForeground;
-            
+
             // Check if data already contains timestamp
             bool hasTimestamp = false;
             if (data.Length > 0 && data[0] == '[')
@@ -191,7 +191,7 @@ namespace MultiSerialMonitor.Forms
                     hasTimestamp = true;
                 }
             }
-            
+
             if (hasTimestamp)
             {
                 AppendLine(data, color);
@@ -201,7 +201,7 @@ namespace MultiSerialMonitor.Forms
                 AppendLine($"[{DateTime.Now:HH:mm:ss}] {data}", color);
             }
         }
-        
+
         private void OnStatusChanged(object? sender, ConnectionStatus status)
         {
             if (InvokeRequired)
@@ -209,21 +209,21 @@ namespace MultiSerialMonitor.Forms
                 Invoke(() => OnStatusChanged(sender, status));
                 return;
             }
-            
+
             _statusLabel.Text = $"Status: {status}";
             bool isConnected = status == ConnectionStatus.Connected;
-            
+
             _connectButton.Enabled = !isConnected;
             _disconnectButton.Enabled = isConnected;
             _commandInput.Enabled = isConnected;
             _sendButton.Enabled = isConnected;
         }
-        
+
         private void AppendLine(string text, Color color)
         {
             _consoleOutput.SelectionStart = _consoleOutput.TextLength;
             _consoleOutput.SelectionLength = 0;
-            
+
             if (_showLineNumbers)
             {
                 // Add line number in gray color
@@ -231,17 +231,17 @@ namespace MultiSerialMonitor.Forms
                 _consoleOutput.AppendText($"{_lineNumber,5}: ");
                 _lineNumber++;
             }
-            
+
             _consoleOutput.SelectionColor = color;
             _consoleOutput.AppendText(text + Environment.NewLine);
             _consoleOutput.ScrollToCaret();
         }
-        
+
         private async void OnSendClick(object? sender, EventArgs e)
         {
             await SendCommandAsync();
         }
-        
+
         private async void OnCommandInputKeyPress(object? sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == (char)Keys.Enter)
@@ -250,26 +250,26 @@ namespace MultiSerialMonitor.Forms
                 await SendCommandAsync();
             }
         }
-        
+
         private async Task SendCommandAsync()
         {
             if (string.IsNullOrWhiteSpace(_commandInput.Text)) return;
-            
+
             var command = _commandInput.Text.Trim();
-            
+
             // Validate command length
             if (command.Length > 1000)
             {
-                MessageBox.Show(LocalizationManager.GetString("CommandTooLong"), 
+                MessageBox.Show(LocalizationManager.GetString("CommandTooLong"),
                     LocalizationManager.GetString("InvalidCommand"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             try
             {
                 _commandInput.Enabled = false;
                 _sendButton.Enabled = false;
-                
+
                 await _monitor.SendCommandAsync(command);
                 _commandInput.Clear();
                 _commandInput.Focus();
@@ -277,7 +277,7 @@ namespace MultiSerialMonitor.Forms
             catch (InvalidOperationException ex)
             {
                 var message = string.Format(LocalizationManager.GetString("CannotSendCommand"), ex.Message);
-                MessageBox.Show(message, LocalizationManager.GetString("ConnectionError"), 
+                MessageBox.Show(message, LocalizationManager.GetString("ConnectionError"),
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
@@ -290,7 +290,7 @@ namespace MultiSerialMonitor.Forms
                 _sendButton.Enabled = _monitor.IsConnected;
             }
         }
-        
+
         private async Task ConnectAsync()
         {
             try
@@ -299,11 +299,11 @@ namespace MultiSerialMonitor.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error connecting: {ex.Message}", "Error", 
+                MessageBox.Show($"Error connecting: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
+
         private async Task DisconnectAsync()
         {
             try
@@ -312,20 +312,20 @@ namespace MultiSerialMonitor.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error disconnecting: {ex.Message}", "Error", 
+                MessageBox.Show($"Error disconnecting: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        
+
         private void OnExportClick(object? sender, EventArgs e)
         {
             if (_connection.OutputHistory.Count == 0)
             {
-                MessageBox.Show($"No data to export for {_connection.Name}.", "Export Data", 
+                MessageBox.Show($"No data to export for {_connection.Name}.", "Export Data",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            
+
             using var saveDialog = new SaveFileDialog
             {
                 Filter = LocalizationManager.CurrentLanguage == Language.Thai
@@ -334,13 +334,13 @@ namespace MultiSerialMonitor.Forms
                 FileName = $"{_connection.Name}_{DateTime.Now:yyyyMMdd_HHmmss}",
                 DefaultExt = "txt"
             };
-            
+
             if (saveDialog.ShowDialog(this) == DialogResult.OK)
             {
                 try
                 {
                     var extension = Path.GetExtension(saveDialog.FileName).ToLower();
-                    
+
                     if (extension == ".csv")
                     {
                         // Export as CSV with timestamp, line number, and data
@@ -357,23 +357,23 @@ namespace MultiSerialMonitor.Forms
                             {
                                 writer.WriteLine("Timestamp,Line Number,Data");
                             }
-                            
+
                             int lineNumber = 1;
                             foreach (var line in _connection.OutputHistory)
                             {
                                 var timestamp = "";
                                 var data = line;
-                                
+
                                 var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(.*?)\](.*)");
                                 if (match.Success)
                                 {
                                     timestamp = match.Groups[1].Value;
                                     data = match.Groups[2].Value.Trim();
                                 }
-                                
+
                                 timestamp = $"\"{timestamp}\"";
                                 data = $"\"{data.Replace("\"", "\"\"")}\"";
-                                
+
                                 writer.WriteLine($"{timestamp},{lineNumber},{data}");
                                 lineNumber++;
                             }
@@ -389,7 +389,7 @@ namespace MultiSerialMonitor.Forms
                         // Export as plain text
                         File.WriteAllLines(saveDialog.FileName, _connection.OutputHistory);
                     }
-                    
+
                     var successMessage = LocalizationManager.CurrentLanguage == Language.Thai
                         ? $"ส่งออกข้อมูลสำเร็จไปที่:\n{saveDialog.FileName}\n\nจำนวนบรรทัดทั้งหมด: {_connection.OutputHistory.Count}"
                         : $"Data exported successfully to:\n{saveDialog.FileName}\n\nTotal lines: {_connection.OutputHistory.Count}";
@@ -410,7 +410,7 @@ namespace MultiSerialMonitor.Forms
                 }
             }
         }
-        
+
         private void OnDataCleared(object? sender, EventArgs e)
         {
             if (InvokeRequired)
@@ -418,11 +418,11 @@ namespace MultiSerialMonitor.Forms
                 Invoke(() => OnDataCleared(sender, e));
                 return;
             }
-            
+
             _consoleOutput.Clear();
             _lineNumber = 1;
         }
-        
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _connection.DataReceived -= OnDataReceived;
@@ -430,34 +430,39 @@ namespace MultiSerialMonitor.Forms
             _connection.DataCleared -= OnDataCleared;
             base.OnFormClosed(e);
         }
-        
+
         public void ApplyTheme()
         {
             // Apply theme to form
             ThemeManager.ApplyTheme(this);
-            
+
             // Console output uses special console colors
             _consoleOutput.BackColor = ThemeManager.Colors.ConsoleBackground;
             _consoleOutput.ForeColor = ThemeManager.Colors.ConsoleForeground;
-            
+
             // Apply theme to toolbar
             var toolbar = Controls.OfType<ToolStrip>().FirstOrDefault();
             if (toolbar != null)
             {
                 ThemeManager.ApplyTheme(toolbar);
             }
-            
+
             // Apply theme to status strip
             if (_statusStrip != null)
             {
                 ThemeManager.ApplyTheme(_statusStrip);
             }
         }
-        
+
+        private void InitializeComponent()
+        {
+
+        }
+
         public void ApplyLocalization()
         {
             Text = $"{LocalizationManager.GetString("Console")} - {_connection.Name}";
-            
+
             // Update button texts
             if (_connectButton != null)
                 _connectButton.Text = LocalizationManager.GetString("Connect");
@@ -469,7 +474,7 @@ namespace MultiSerialMonitor.Forms
                 _toggleLineNumbersButton.Text = LocalizationManager.GetString("LineNumbers");
             if (_sendButton != null)
                 _sendButton.Text = LocalizationManager.GetString("Send");
-                
+
             // Update status label
             if (_statusLabel != null)
             {
@@ -477,7 +482,7 @@ namespace MultiSerialMonitor.Forms
                 var statusValue = LocalizationManager.GetString(_connection.Status.ToString());
                 _statusLabel.Text = $"{statusText}: {statusValue}";
             }
-            
+
             // Update export button
             var toolbar = Controls.OfType<ToolStrip>().FirstOrDefault();
             if (toolbar != null)

@@ -5,14 +5,14 @@ namespace MultiSerialMonitor.Forms
         private TextBox _nameTextBox;
         private Button _okButton;
         private Button _cancelButton;
-        
+
         public string ProfileName => _nameTextBox.Text.Trim();
-        
+
         public SaveProfileDialog()
         {
             InitializeComponents();
         }
-        
+
         private void InitializeComponents()
         {
             Text = "Save Profile";
@@ -21,21 +21,21 @@ namespace MultiSerialMonitor.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            
+
             var label = new Label
             {
                 Text = "Profile Name:",
                 Location = new Point(12, 20),
                 Size = new Size(80, 23)
             };
-            
+
             _nameTextBox = new TextBox
             {
                 Location = new Point(100, 17),
                 Size = new Size(270, 23),
                 TabIndex = 0
             };
-            
+
             _okButton = new Button
             {
                 Text = "Save",
@@ -45,7 +45,7 @@ namespace MultiSerialMonitor.Forms
                 TabIndex = 1
             };
             _okButton.Click += OnOkClick;
-            
+
             _cancelButton = new Button
             {
                 Text = "Cancel",
@@ -54,33 +54,38 @@ namespace MultiSerialMonitor.Forms
                 DialogResult = DialogResult.Cancel,
                 TabIndex = 2
             };
-            
+
             Controls.AddRange(new Control[] {
                 label,
                 _nameTextBox,
                 _okButton,
                 _cancelButton
             });
-            
+
             AcceptButton = _okButton;
             CancelButton = _cancelButton;
         }
-        
+
+        private void InitializeComponent()
+        {
+
+        }
+
         private void OnOkClick(object? sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_nameTextBox.Text))
             {
-                MessageBox.Show("Please enter a profile name.", "Validation", 
+                MessageBox.Show("Please enter a profile name.", "Validation",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.None;
                 return;
             }
-            
+
             // Validate filename
             var invalidChars = Path.GetInvalidFileNameChars();
             if (_nameTextBox.Text.Any(c => invalidChars.Contains(c)))
             {
-                MessageBox.Show("Profile name contains invalid characters.", "Validation", 
+                MessageBox.Show("Profile name contains invalid characters.", "Validation",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 DialogResult = DialogResult.None;
                 return;

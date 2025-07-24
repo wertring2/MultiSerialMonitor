@@ -9,16 +9,16 @@ namespace MultiSerialMonitor.Forms
         private NumericUpDown _timeoutNumeric;
         private CheckBox _autoReconnectCheckBox;
         private NumericUpDown _reconnectIntervalNumeric;
-        
+
         public ConnectionConfig Config { get; private set; }
-        
+
         public ConnectionSettingsForm(ConnectionConfig config)
         {
             Config = config.Clone();
             InitializeComponents();
             LoadSettings();
         }
-        
+
         private void InitializeComponents()
         {
             Text = "Connection Settings";
@@ -27,7 +27,7 @@ namespace MultiSerialMonitor.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            
+
             var mainPanel = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -35,7 +35,7 @@ namespace MultiSerialMonitor.Forms
                 Padding = new Padding(10),
                 AutoSize = true
             };
-            
+
             // Max retry attempts
             mainPanel.Controls.Add(new Label { Text = "Max Retry Attempts:", AutoSize = true }, 0, 0);
             _maxRetriesNumeric = new NumericUpDown
@@ -46,7 +46,7 @@ namespace MultiSerialMonitor.Forms
                 Dock = DockStyle.Fill
             };
             mainPanel.Controls.Add(_maxRetriesNumeric, 1, 0);
-            
+
             // Retry delay
             mainPanel.Controls.Add(new Label { Text = "Retry Delay (ms):", AutoSize = true }, 0, 1);
             _retryDelayNumeric = new NumericUpDown
@@ -58,7 +58,7 @@ namespace MultiSerialMonitor.Forms
                 Dock = DockStyle.Fill
             };
             mainPanel.Controls.Add(_retryDelayNumeric, 1, 1);
-            
+
             // Connection timeout
             mainPanel.Controls.Add(new Label { Text = "Connection Timeout (ms):", AutoSize = true }, 0, 2);
             _timeoutNumeric = new NumericUpDown
@@ -70,7 +70,7 @@ namespace MultiSerialMonitor.Forms
                 Dock = DockStyle.Fill
             };
             mainPanel.Controls.Add(_timeoutNumeric, 1, 2);
-            
+
             // Auto-reconnect
             mainPanel.Controls.Add(new Label { Text = "Auto-Reconnect:", AutoSize = true }, 0, 3);
             _autoReconnectCheckBox = new CheckBox
@@ -81,7 +81,7 @@ namespace MultiSerialMonitor.Forms
             };
             _autoReconnectCheckBox.CheckedChanged += OnAutoReconnectChanged;
             mainPanel.Controls.Add(_autoReconnectCheckBox, 1, 3);
-            
+
             // Reconnect interval
             mainPanel.Controls.Add(new Label { Text = "Reconnect Interval (ms):", AutoSize = true }, 0, 4);
             _reconnectIntervalNumeric = new NumericUpDown
@@ -94,7 +94,7 @@ namespace MultiSerialMonitor.Forms
                 Dock = DockStyle.Fill
             };
             mainPanel.Controls.Add(_reconnectIntervalNumeric, 1, 4);
-            
+
             // Buttons
             var buttonPanel = new FlowLayoutPanel
             {
@@ -103,14 +103,14 @@ namespace MultiSerialMonitor.Forms
                 Height = 40,
                 Padding = new Padding(10, 0, 10, 10)
             };
-            
+
             var cancelButton = new Button
             {
                 Text = "Cancel",
                 DialogResult = DialogResult.Cancel,
                 Size = new Size(80, 25)
             };
-            
+
             var okButton = new Button
             {
                 Text = "OK",
@@ -118,19 +118,19 @@ namespace MultiSerialMonitor.Forms
                 Size = new Size(80, 25)
             };
             okButton.Click += OnOkClick;
-            
+
             buttonPanel.Controls.AddRange(new Control[] { cancelButton, okButton });
-            
+
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            
+
             Controls.Add(mainPanel);
             Controls.Add(buttonPanel);
-            
+
             AcceptButton = okButton;
             CancelButton = cancelButton;
         }
-        
+
         private void LoadSettings()
         {
             _maxRetriesNumeric.Value = Config.MaxRetryAttempts;
@@ -139,12 +139,17 @@ namespace MultiSerialMonitor.Forms
             _autoReconnectCheckBox.Checked = Config.AutoReconnect;
             _reconnectIntervalNumeric.Value = Config.ReconnectIntervalMs;
         }
-        
+
         private void OnAutoReconnectChanged(object? sender, EventArgs e)
         {
             _reconnectIntervalNumeric.Enabled = _autoReconnectCheckBox.Checked;
         }
-        
+
+        private void InitializeComponent()
+        {
+
+        }
+
         private void OnOkClick(object? sender, EventArgs e)
         {
             Config.MaxRetryAttempts = (int)_maxRetriesNumeric.Value;
@@ -154,7 +159,7 @@ namespace MultiSerialMonitor.Forms
             Config.ReconnectIntervalMs = (int)_reconnectIntervalNumeric.Value;
         }
     }
-    
+
     public static class ConnectionConfigExtensions
     {
         public static ConnectionConfig Clone(this ConnectionConfig config)

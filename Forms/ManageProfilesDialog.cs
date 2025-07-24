@@ -8,14 +8,14 @@ namespace MultiSerialMonitor.Forms
         private Button _deleteButton;
         private Button _closeButton;
         private readonly ConfigurationManager _configManager;
-        
+
         public ManageProfilesDialog(ConfigurationManager configManager)
         {
             _configManager = configManager;
             InitializeComponents();
             LoadProfiles();
         }
-        
+
         private void InitializeComponents()
         {
             Text = "Manage Profiles";
@@ -24,14 +24,14 @@ namespace MultiSerialMonitor.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            
+
             var label = new Label
             {
                 Text = "Saved Profiles:",
                 Location = new Point(12, 12),
                 Size = new Size(100, 23)
             };
-            
+
             _profilesList = new ListBox
             {
                 Location = new Point(12, 40),
@@ -39,7 +39,7 @@ namespace MultiSerialMonitor.Forms
                 SelectionMode = SelectionMode.One
             };
             _profilesList.SelectedIndexChanged += OnSelectionChanged;
-            
+
             _deleteButton = new Button
             {
                 Text = "Delete",
@@ -48,7 +48,7 @@ namespace MultiSerialMonitor.Forms
                 Enabled = false
             };
             _deleteButton.Click += OnDeleteClick;
-            
+
             _closeButton = new Button
             {
                 Text = "Close",
@@ -56,22 +56,22 @@ namespace MultiSerialMonitor.Forms
                 Size = new Size(75, 30),
                 DialogResult = DialogResult.OK
             };
-            
+
             Controls.AddRange(new Control[] {
                 label,
                 _profilesList,
                 _deleteButton,
                 _closeButton
             });
-            
+
             CancelButton = _closeButton;
         }
-        
+
         private void LoadProfiles()
         {
             _profilesList.Items.Clear();
             var profiles = _configManager.GetAvailableProfiles();
-            
+
             if (profiles.Length == 0)
             {
                 _profilesList.Items.Add("(No saved profiles)");
@@ -86,24 +86,29 @@ namespace MultiSerialMonitor.Forms
                 }
             }
         }
-        
+
         private void OnSelectionChanged(object? sender, EventArgs e)
         {
-            _deleteButton.Enabled = _profilesList.Enabled && 
-                                  _profilesList.SelectedItem != null && 
+            _deleteButton.Enabled = _profilesList.Enabled &&
+                                  _profilesList.SelectedItem != null &&
                                   _profilesList.SelectedItem.ToString() != "(No saved profiles)";
         }
-        
+
+        private void InitializeComponent()
+        {
+
+        }
+
         private void OnDeleteClick(object? sender, EventArgs e)
         {
             if (_profilesList.SelectedItem == null) return;
-            
+
             var profileName = _profilesList.SelectedItem.ToString();
             if (string.IsNullOrEmpty(profileName)) return;
-            
-            var result = MessageBox.Show($"Are you sure you want to delete the profile '{profileName}'?", 
+
+            var result = MessageBox.Show($"Are you sure you want to delete the profile '{profileName}'?",
                 "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            
+
             if (result == DialogResult.Yes)
             {
                 try
@@ -113,7 +118,7 @@ namespace MultiSerialMonitor.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error deleting profile: {ex.Message}", 
+                    MessageBox.Show($"Error deleting profile: {ex.Message}",
                         "Delete Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }

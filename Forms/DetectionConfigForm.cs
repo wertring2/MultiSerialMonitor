@@ -12,7 +12,7 @@ namespace MultiSerialMonitor.Forms
         private Button _saveButton;
         private Button _cancelButton;
         private List<DetectionPattern> _patterns;
-        
+
         public DetectionConfigForm(PortConnection connection)
         {
             _connection = connection;
@@ -20,7 +20,7 @@ namespace MultiSerialMonitor.Forms
             InitializeComponents();
             ApplyTheme();
         }
-        
+
         private void InitializeComponents()
         {
             Text = $"Configure Detection Patterns - {_connection.Name}";
@@ -29,7 +29,7 @@ namespace MultiSerialMonitor.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
-            
+
             // Patterns grid
             _patternsGrid = new DataGridView
             {
@@ -42,7 +42,7 @@ namespace MultiSerialMonitor.Forms
                 MultiSelect = false,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
             };
-            
+
             // Configure columns
             _patternsGrid.Columns.Add(new DataGridViewCheckBoxColumn
             {
@@ -51,7 +51,7 @@ namespace MultiSerialMonitor.Forms
                 Width = 60,
                 DataPropertyName = "IsEnabled"
             });
-            
+
             _patternsGrid.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Name",
@@ -59,7 +59,7 @@ namespace MultiSerialMonitor.Forms
                 Width = 150,
                 DataPropertyName = "Name"
             });
-            
+
             _patternsGrid.Columns.Add(new DataGridViewTextBoxColumn
             {
                 Name = "Pattern",
@@ -67,7 +67,7 @@ namespace MultiSerialMonitor.Forms
                 Width = 250,
                 DataPropertyName = "Pattern"
             });
-            
+
             _patternsGrid.Columns.Add(new DataGridViewCheckBoxColumn
             {
                 Name = "IsRegex",
@@ -75,7 +75,7 @@ namespace MultiSerialMonitor.Forms
                 Width = 50,
                 DataPropertyName = "IsRegex"
             });
-            
+
             _patternsGrid.Columns.Add(new DataGridViewCheckBoxColumn
             {
                 Name = "CaseSensitive",
@@ -83,7 +83,7 @@ namespace MultiSerialMonitor.Forms
                 Width = 100,
                 DataPropertyName = "CaseSensitive"
             });
-            
+
             // Buttons
             _addButton = new Button
             {
@@ -93,7 +93,7 @@ namespace MultiSerialMonitor.Forms
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left
             };
             _addButton.Click += OnAddPattern;
-            
+
             _removeButton = new Button
             {
                 Text = "Remove",
@@ -103,7 +103,7 @@ namespace MultiSerialMonitor.Forms
                 Enabled = false
             };
             _removeButton.Click += OnRemovePattern;
-            
+
             _saveButton = new Button
             {
                 Text = "Save",
@@ -113,7 +113,7 @@ namespace MultiSerialMonitor.Forms
                 DialogResult = DialogResult.OK
             };
             _saveButton.Click += OnSave;
-            
+
             _cancelButton = new Button
             {
                 Text = "Cancel",
@@ -122,7 +122,7 @@ namespace MultiSerialMonitor.Forms
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
                 DialogResult = DialogResult.Cancel
             };
-            
+
             // Add controls
             Controls.AddRange(new Control[] {
                 _patternsGrid,
@@ -131,21 +131,21 @@ namespace MultiSerialMonitor.Forms
                 _saveButton,
                 _cancelButton
             });
-            
+
             // Load existing patterns
             LoadPatterns();
-            
+
             // Wire up events
             _patternsGrid.SelectionChanged += OnSelectionChanged;
             _patternsGrid.CellValueChanged += OnCellValueChanged;
         }
-        
+
         private void LoadPatterns()
         {
             _patternsGrid.DataSource = null;
             _patternsGrid.DataSource = _patterns;
         }
-        
+
         private void OnAddPattern(object? sender, EventArgs e)
         {
             var editForm = new DetectionPatternEditForm(null);
@@ -155,7 +155,7 @@ namespace MultiSerialMonitor.Forms
                 LoadPatterns();
             }
         }
-        
+
         private void OnRemovePattern(object? sender, EventArgs e)
         {
             if (_patternsGrid.SelectedRows.Count > 0)
@@ -168,26 +168,31 @@ namespace MultiSerialMonitor.Forms
                 }
             }
         }
-        
+
         private void OnSelectionChanged(object? sender, EventArgs e)
         {
             _removeButton.Enabled = _patternsGrid.SelectedRows.Count > 0;
         }
-        
+
         private void OnCellValueChanged(object? sender, DataGridViewCellEventArgs e)
         {
             // Patterns are updated automatically through data binding
         }
-        
+
         private void OnSave(object? sender, EventArgs e)
         {
             _connection.Config.DetectionPatterns = new List<DetectionPattern>(_patterns);
         }
-        
+
+        private void InitializeComponent()
+        {
+
+        }
+
         private void ApplyTheme()
         {
             ThemeManager.ApplyTheme(this);
-            
+
             // Apply theme to DataGridView
             if (_patternsGrid != null)
             {
@@ -195,17 +200,17 @@ namespace MultiSerialMonitor.Forms
                 _patternsGrid.GridColor = ThemeManager.Colors.ControlBorder;
                 _patternsGrid.DefaultCellStyle.BackColor = ThemeManager.Colors.ControlBackground;
                 _patternsGrid.DefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
-                _patternsGrid.DefaultCellStyle.SelectionBackColor = ThemeManager.CurrentTheme == Theme.Dark 
-                    ? Color.FromArgb(70, 70, 70) 
+                _patternsGrid.DefaultCellStyle.SelectionBackColor = ThemeManager.CurrentTheme == Theme.Dark
+                    ? Color.FromArgb(70, 70, 70)
                     : SystemColors.Highlight;
-                _patternsGrid.DefaultCellStyle.SelectionForeColor = ThemeManager.CurrentTheme == Theme.Dark 
-                    ? Color.White 
+                _patternsGrid.DefaultCellStyle.SelectionForeColor = ThemeManager.CurrentTheme == Theme.Dark
+                    ? Color.White
                     : SystemColors.HighlightText;
                 _patternsGrid.ColumnHeadersDefaultCellStyle.BackColor = ThemeManager.Colors.PanelBackground;
                 _patternsGrid.ColumnHeadersDefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
                 _patternsGrid.EnableHeadersVisualStyles = false;
             }
-            
+
             // Apply theme to buttons
             var buttons = new[] { _addButton, _removeButton, _saveButton, _cancelButton };
             foreach (var button in buttons)
@@ -217,7 +222,7 @@ namespace MultiSerialMonitor.Forms
             }
         }
     }
-    
+
     public class DetectionPatternEditForm : Form
     {
         private TextBox _nameTextBox;
