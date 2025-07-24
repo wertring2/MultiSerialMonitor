@@ -260,16 +260,67 @@ namespace MultiSerialMonitor.Services
                     }
                 }
             }
+            catch (InvalidOperationException ioEx)
+            {
+                // Port might have been closed or reset
+                Connection.OnDataReceived($"[READ ERROR] Port may have been reset: {ioEx.Message}");
+                Connection.SetError($"Port read error: {ioEx.Message}");
+                Connection.SetStatus(ConnectionStatus.Error);
+                
+                // Try to recover if auto-reconnect is enabled
+                if (Connection.Config.AutoReconnect)
+                {
+                    Connection.OnDataReceived("[INFO] Will attempt auto-reconnect...");
+                }
+            }
             catch (Exception ex)
             {
-                Connection.OnDataReceived($"Error reading data: {ex.Message}");
+                Connection.OnDataReceived($"[READ ERROR] Unexpected error: {ex.Message}");
+                Connection.SetError($"Read error: {ex.Message}");
             }
         }
         
         private void OnSerialErrorReceived(object sender, SerialErrorReceivedEventArgs e)
         {
-            Connection.OnDataReceived($"Serial port error: {e.EventType}");
+            string errorDescription = GetErrorDescription(e.EventType);
+            Connection.OnDataReceived($"[SERIAL ERROR] {errorDescription}");
+            
+            // For framing errors during device boot, don't set error status immediately
+            if (e.EventType == SerialError.Frame)
+            {
+                Connection.OnDataReceived("[INFO] Framing error detected - this is common during device boot/reset");
+                Connection.OnDataReceived("[INFO] The connection will continue - data may be garbled temporarily");
+                
+                // Just log the error but don't change connection status
+                Connection.SetError($"Temporary framing error during device boot");
+                
+                // Clear the line builder to avoid corrupted data
+                _lineBuilder.Clear();
+                
+                // Don't set error status - let it continue
+                return;
+            }
+            
+            // For other errors, set error status
+            Connection.SetError($"Serial port error: {errorDescription}");
             Connection.SetStatus(ConnectionStatus.Error);
+            
+            // Log additional debug info
+            Connection.OnDataReceived($"[DEBUG] Error Type: {e.EventType}");
+            Connection.OnDataReceived($"[DEBUG] Port State: IsOpen={_serialPort?.IsOpen}, DSR={_serialPort?.DsrHolding}, CTS={_serialPort?.CtsHolding}");
+        }
+        
+        private string GetErrorDescription(SerialError errorType)
+        {
+            return errorType switch
+            {
+                SerialError.Frame => "Framing error detected - check baud rate and data format settings",
+                SerialError.Overrun => "Buffer overrun - data loss may have occurred",
+                SerialError.RXOver => "Receive buffer overflow - incoming data too fast",
+                SerialError.RXParity => "Parity error - check parity settings or cable connection",
+                SerialError.TXFull => "Transmit buffer full",
+                _ => $"{errorType} error"
+            };
         }
         
         public void Dispose()

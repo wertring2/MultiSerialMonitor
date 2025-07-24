@@ -345,10 +345,25 @@ namespace MultiSerialMonitor.Controls
             }
             
             _statusLabel.Text = status.ToString();
+            
+            // Show error details when status is Error
+            if (status == ConnectionStatus.Error && !string.IsNullOrEmpty(Connection.LastError))
+            {
+                // Display error in the last line label for visibility
+                _lastLineLabel.Text = $"[ERROR] {Connection.LastError}";
+                _lastLineLabel.ForeColor = Color.Red;
+                
+                // Also update status label with short error
+                _statusLabel.Text = $"Error: {GetShortErrorMessage(Connection.LastError)}";
+            }
+            else if (status != ConnectionStatus.Error && _lastLineLabel.ForeColor == Color.Red)
+            {
+                // Reset color if we're no longer in error state
+                _lastLineLabel.ForeColor = Color.Black;
+            }
+            
             _statusIndicator.BackColor = GetStatusColor(status);
             UpdateContextMenu();
-            
-            // Show error details if in error state
             if (status == ConnectionStatus.Error && !string.IsNullOrEmpty(Connection.LastError))
             {
                 // For multi-line errors, show first line in status and full error in last line label
@@ -388,16 +403,58 @@ namespace MultiSerialMonitor.Controls
                 return;
             }
             
-            // Flash the panel briefly to indicate error
-            var originalColor = BackColor;
-            BackColor = Color.FromArgb(255, 230, 230);
-            Task.Delay(200).ContinueWith(_ => 
+            // Check if this is a temporary framing error
+            if (error.Contains("Temporary framing error"))
             {
-                if (!IsDisposed)
+                // Show warning but not as critical error
+                _statusLabel.Text = "Warning: Device booting...";
+                _statusLabel.ForeColor = Color.DarkOrange;
+                _lastLineLabel.Text = "[BOOT] Device is resetting - temporary data corruption expected";
+                _lastLineLabel.ForeColor = Color.DarkOrange;
+                
+                // Flash panel in orange briefly
+                var originalColor = BackColor;
+                BackColor = Color.FromArgb(255, 245, 230);
+                Task.Delay(200).ContinueWith(_ => 
                 {
-                    Invoke(() => BackColor = originalColor);
-                }
-            });
+                    if (!IsDisposed)
+                    {
+                        Invoke(() => BackColor = originalColor);
+                    }
+                });
+                
+                // Auto clear warning after 3 seconds and return to normal
+                Task.Delay(3000).ContinueWith(_ => 
+                {
+                    if (!IsDisposed && Connection.Status == ConnectionStatus.Connected)
+                    {
+                        Invoke(() => 
+                        {
+                            _statusLabel.Text = "Connected";
+                            _statusLabel.ForeColor = Color.Green;
+                            _lastLineLabel.ForeColor = Color.Black;
+                            // Clear the boot message if it's still showing
+                            if (_lastLineLabel.Text.Contains("[BOOT]"))
+                            {
+                                _lastLineLabel.Text = "";
+                            }
+                        });
+                    }
+                });
+            }
+            else
+            {
+                // Flash the panel briefly to indicate error
+                var originalColor = BackColor;
+                BackColor = Color.FromArgb(255, 230, 230);
+                Task.Delay(200).ContinueWith(_ => 
+                {
+                    if (!IsDisposed)
+                    {
+                        Invoke(() => BackColor = originalColor);
+                    }
+                });
+            }
         }
         
         private Color GetStatusColor(ConnectionStatus status)
@@ -431,6 +488,25 @@ namespace MultiSerialMonitor.Controls
                     Invoke(() => _detectionLabel.ForeColor = originalColor);
                 }
             });
+        }
+        
+        private string GetShortErrorMessage(string error)
+        {
+            if (string.IsNullOrEmpty(error))
+                return "Unknown error";
+            
+            // Extract key part of error message
+            if (error.Contains("Serial port error:"))
+                return error.Replace("Serial port error:", "").Trim();
+            
+            if (error.Contains("Connection failed:"))
+                return error.Replace("Connection failed:", "").Trim();
+            
+            // If error is too long, truncate
+            if (error.Length > 50)
+                return error.Substring(0, 47) + "...";
+            
+            return error;
         }
         
         private void UpdateDetectionDisplay()
