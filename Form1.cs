@@ -30,12 +30,16 @@ namespace MultiSerialMonitor
         private readonly ConfigurationManager _configManager = new();
         private System.Windows.Forms.Timer? _resizeTimer;
         private bool _isResizing = false;
+        private ToolStripButton? _darkModeButton;
+        private AppSettings _appSettings;
         
         public Form1()
         {
             InitializeComponent();
+            LoadAppSettings();
             LoadLanguagePreference();
             InitializeCustomComponents();
+            ApplyTheme();
             ApplyLocalization();
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
             LoadViewModePreference();
@@ -150,6 +154,15 @@ namespace MultiSerialMonitor
             };
             _viewModeButton.Click += OnViewModeClick;
             
+            // Dark mode button
+            _darkModeButton = new ToolStripButton
+            {
+                Text = "Dark Mode",
+                DisplayStyle = ToolStripItemDisplayStyle.Text,
+                ToolTipText = "Toggle Dark Mode"
+            };
+            _darkModeButton.Click += OnDarkModeClick;
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
@@ -162,6 +175,8 @@ namespace MultiSerialMonitor
                 clearAllButton,
                 removeAllButton,
                 new ToolStripSeparator(),
+                _darkModeButton,
+                new ToolStripSeparator(),
                 _languageDropDown
             });
             
@@ -172,8 +187,7 @@ namespace MultiSerialMonitor
                 AutoScroll = true,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                Padding = new Padding(10),
-                BackColor = Color.White
+                Padding = new Padding(10)
             };
             
             // Status strip
@@ -1390,6 +1404,58 @@ namespace MultiSerialMonitor
             {
                 Debug.WriteLine($"Error loading view mode preference: {ex.Message}");
             }
+        }
+        
+        private void LoadAppSettings()
+        {
+            _appSettings = AppSettings.Load();
+            ThemeManager.CurrentTheme = _appSettings.Theme;
+            ThemeManager.ThemeChanged += OnThemeChanged;
+        }
+        
+        private void SaveAppSettings()
+        {
+            _appSettings.Save();
+        }
+        
+        private void ApplyTheme()
+        {
+            ThemeManager.ApplyTheme(this);
+            
+            // Update dark mode button text
+            if (_darkModeButton != null)
+            {
+                _darkModeButton.Text = ThemeManager.CurrentTheme == Theme.Dark ? "Light Mode" : "Dark Mode";
+            }
+            
+            // Apply theme to all existing port panels
+            foreach (var panel in _portPanels.Values)
+            {
+                panel.ApplyTheme();
+            }
+            
+            // Apply theme to all existing console forms
+            foreach (var form in _consoleForms.Values)
+            {
+                form.ApplyTheme();
+            }
+        }
+        
+        private void OnThemeChanged(object? sender, EventArgs e)
+        {
+            ApplyTheme();
+        }
+        
+        private void OnDarkModeClick(object? sender, EventArgs e)
+        {
+            // Toggle theme
+            ThemeManager.CurrentTheme = ThemeManager.CurrentTheme == Theme.Dark ? Theme.Light : Theme.Dark;
+            
+            // Save preference
+            _appSettings.Theme = ThemeManager.CurrentTheme;
+            SaveAppSettings();
+            
+            _statusLabel.Text = $"Switched to {ThemeManager.CurrentTheme} mode";
         }
     }
 }

@@ -1,6 +1,7 @@
 using System.IO.Ports;
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Localization;
+using MultiSerialMonitor.Services;
 
 namespace MultiSerialMonitor.Forms
 {
@@ -25,8 +26,10 @@ namespace MultiSerialMonitor.Forms
         public AddPortForm()
         {
             InitializeComponents();
+            ApplyTheme();
             ApplyLocalization();
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
+            ThemeManager.ThemeChanged += (s, e) => ApplyTheme();
         }
         
         private void InitializeComponents()
@@ -286,6 +289,27 @@ namespace MultiSerialMonitor.Forms
                     HostName = hostname,
                     Port = (int)_portNumeric.Value
                 };
+            }
+        }
+        
+        public void ApplyTheme()
+        {
+            ThemeManager.ApplyTheme(this);
+            
+            // Apply theme to all controls recursively
+            ApplyThemeToControls(Controls);
+        }
+        
+        private void ApplyThemeToControls(Control.ControlCollection controls)
+        {
+            foreach (Control control in controls)
+            {
+                ThemeManager.ApplyTheme(control);
+                
+                if (control.HasChildren)
+                {
+                    ApplyThemeToControls(control.Controls);
+                }
             }
         }
         

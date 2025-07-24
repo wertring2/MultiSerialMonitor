@@ -1,5 +1,6 @@
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Localization;
+using MultiSerialMonitor.Services;
 using System.Text;
 
 namespace MultiSerialMonitor.Forms
@@ -19,10 +20,12 @@ namespace MultiSerialMonitor.Forms
         {
             _connection = connection;
             InitializeComponents();
+            ApplyTheme();
             ApplyLocalization();
             LoadDetections();
             
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
+            ThemeManager.ThemeChanged += (s, e) => ApplyTheme();
         }
         
         private void InitializeComponents()
@@ -402,6 +405,46 @@ namespace MultiSerialMonitor.Forms
                 _connection.PatternDetected -= OnPatternDetected;
             }
             base.Dispose(disposing);
+        }
+        
+        public void ApplyTheme()
+        {
+            ThemeManager.ApplyTheme(this);
+            
+            // Apply theme to DataGridView
+            if (_detectionsGrid != null)
+            {
+                _detectionsGrid.BackgroundColor = ThemeManager.Colors.ControlBackground;
+                _detectionsGrid.GridColor = ThemeManager.Colors.ControlBorder;
+                _detectionsGrid.DefaultCellStyle.BackColor = ThemeManager.Colors.ControlBackground;
+                _detectionsGrid.DefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
+                _detectionsGrid.DefaultCellStyle.SelectionBackColor = ThemeManager.CurrentTheme == Theme.Dark 
+                    ? Color.FromArgb(70, 70, 70) 
+                    : SystemColors.Highlight;
+                _detectionsGrid.DefaultCellStyle.SelectionForeColor = ThemeManager.CurrentTheme == Theme.Dark 
+                    ? Color.White 
+                    : SystemColors.HighlightText;
+                _detectionsGrid.ColumnHeadersDefaultCellStyle.BackColor = ThemeManager.Colors.PanelBackground;
+                _detectionsGrid.ColumnHeadersDefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
+                _detectionsGrid.EnableHeadersVisualStyles = false;
+            }
+            
+            // Details textbox already uses console colors
+            if (_detailsTextBox != null)
+            {
+                _detailsTextBox.BackColor = ThemeManager.Colors.ConsoleBackground;
+                _detailsTextBox.ForeColor = ThemeManager.Colors.ConsoleForeground;
+            }
+            
+            // Apply theme to buttons
+            var buttons = new[] { _clearButton, _exportButton, _closeButton };
+            foreach (var button in buttons)
+            {
+                if (button != null)
+                {
+                    ThemeManager.ApplyTheme(button);
+                }
+            }
         }
         
         public void ApplyLocalization()

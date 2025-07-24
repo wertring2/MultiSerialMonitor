@@ -1,5 +1,6 @@
 using MultiSerialMonitor.Models;
 using MultiSerialMonitor.Localization;
+using MultiSerialMonitor.Services;
 
 namespace MultiSerialMonitor.Controls
 {
@@ -35,6 +36,7 @@ namespace MultiSerialMonitor.Controls
         {
             Connection = connection;
             InitializeComponents();
+            ApplyTheme();
             
             Connection.DataReceived += OnDataReceived;
             Connection.StatusChanged += OnStatusChanged;
@@ -49,7 +51,7 @@ namespace MultiSerialMonitor.Controls
             MinimumSize = new Size(300, 160);
             BorderStyle = BorderStyle.FixedSingle;
             Padding = new Padding(10);
-            BackColor = Color.FromArgb(245, 245, 245);
+            // BackColor will be set by ApplyTheme()
             
             // Enable double buffering for smoother rendering
             SetStyle(ControlStyles.AllPaintingInWmPaint | 
@@ -134,7 +136,6 @@ namespace MultiSerialMonitor.Controls
                 Location = new Point(Width - 145, 10),
                 Anchor = AnchorStyles.Right | AnchorStyles.Top,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.White,
                 Cursor = Cursors.Hand
             };
             _expandButton.Click += (s, e) => ExpandRequested?.Invoke(this, EventArgs.Empty);
@@ -147,7 +148,6 @@ namespace MultiSerialMonitor.Controls
                 Location = new Point(Width - 205, 10),
                 Anchor = AnchorStyles.Right | AnchorStyles.Top,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.LightBlue,
                 Cursor = Cursors.Hand
             };
             _clearButton.Click += (s, e) => ClearDataRequested?.Invoke(this, EventArgs.Empty);
@@ -160,7 +160,6 @@ namespace MultiSerialMonitor.Controls
                 Location = new Point(Width - 40, 115),
                 Anchor = AnchorStyles.Right | AnchorStyles.Top,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.LightGray,
                 Font = new Font("Arial", 10),
                 Cursor = Cursors.Hand
             };
@@ -174,8 +173,6 @@ namespace MultiSerialMonitor.Controls
                 Location = new Point(Width - 40, 10),
                 Anchor = AnchorStyles.Right | AnchorStyles.Top,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(255, 200, 200),
-                ForeColor = Color.DarkRed,
                 Font = new Font("Arial", 12, FontStyle.Bold),
                 Cursor = Cursors.Hand
             };
@@ -236,8 +233,8 @@ namespace MultiSerialMonitor.Controls
             toolTip.SetToolTip(_clearButton, "Clear all data for this port");
             
             // Add hover effects
-            MouseEnter += (s, e) => BackColor = Color.FromArgb(235, 235, 235);
-            MouseLeave += (s, e) => BackColor = Color.FromArgb(245, 245, 245);
+            MouseEnter += (s, e) => BackColor = ThemeManager.Colors.PanelHoverBackground;
+            MouseLeave += (s, e) => BackColor = ThemeManager.Colors.PanelBackground;
             
             // Apply initial layout adjustments
             AdjustLayoutForSize();
@@ -658,6 +655,61 @@ namespace MultiSerialMonitor.Controls
                 Connection.DataCleared -= OnDataCleared;
             }
             base.Dispose(disposing);
+        }
+        
+        public void ApplyTheme()
+        {
+            BackColor = ThemeManager.Colors.PanelBackground;
+            
+            // Update label colors
+            _nameLabel.ForeColor = ThemeManager.Colors.PortNameColor;
+            _statusLabel.ForeColor = ThemeManager.Colors.TimestampColor;
+            _lastLineLabel.ForeColor = ThemeManager.Colors.DataTextColor;
+            _statsLabel.ForeColor = ThemeManager.Colors.TimestampColor;
+            
+            // Update button colors
+            _expandButton.BackColor = ThemeManager.Colors.ButtonBackground;
+            _expandButton.ForeColor = ThemeManager.Colors.ButtonForeground;
+            _expandButton.FlatAppearance.BorderColor = ThemeManager.Colors.ControlBorder;
+            
+            _clearButton.BackColor = ThemeManager.Colors.ButtonBackground;
+            _clearButton.ForeColor = ThemeManager.Colors.ButtonForeground;
+            _clearButton.FlatAppearance.BorderColor = ThemeManager.Colors.ControlBorder;
+            
+            _configDetectionButton.BackColor = ThemeManager.Colors.ButtonBackground;
+            _configDetectionButton.ForeColor = ThemeManager.Colors.ButtonForeground;
+            _configDetectionButton.FlatAppearance.BorderColor = ThemeManager.Colors.ControlBorder;
+            
+            _deleteButton.BackColor = ThemeManager.CurrentTheme == Theme.Dark 
+                ? Color.FromArgb(80, 40, 40) 
+                : Color.FromArgb(255, 200, 200);
+            _deleteButton.ForeColor = Color.FromArgb(255, 100, 100);
+            _deleteButton.FlatAppearance.BorderColor = ThemeManager.Colors.ControlBorder;
+            
+            // Update detection label color based on detection count
+            if (Connection.DetectionMatches.Count > 0)
+            {
+                _detectionLabel.ForeColor = ThemeManager.CurrentTheme == Theme.Dark 
+                    ? Color.FromArgb(255, 100, 100) 
+                    : Color.DarkRed;
+            }
+            else
+            {
+                _detectionLabel.ForeColor = ThemeManager.Colors.TimestampColor;
+            }
+            
+            // Update context menu
+            if (_contextMenu != null)
+            {
+                ThemeManager.ApplyTheme(_contextMenu);
+            }
+            
+            // Update border based on theme
+            if (ThemeManager.CurrentTheme == Theme.Dark)
+            {
+                BorderStyle = BorderStyle.FixedSingle;
+                ForeColor = ThemeManager.Colors.PanelBorder;
+            }
         }
         
         public void ApplyLocalization()

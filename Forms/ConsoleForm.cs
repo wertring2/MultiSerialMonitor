@@ -27,6 +27,7 @@ namespace MultiSerialMonitor.Forms
             _monitor = monitor;
             
             InitializeComponents();
+            ApplyTheme();
             ApplyLocalization();
             LoadHistory();
             
@@ -35,6 +36,7 @@ namespace MultiSerialMonitor.Forms
             _connection.DataCleared += OnDataCleared;
             
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
+            ThemeManager.ThemeChanged += (s, e) => ApplyTheme();
         }
         
         private void InitializeComponents()
@@ -54,8 +56,6 @@ namespace MultiSerialMonitor.Forms
             {
                 Dock = DockStyle.Fill,
                 Font = new Font("Consolas", 10),
-                BackColor = Color.Black,
-                ForeColor = Color.LightGray,
                 ReadOnly = true,
                 WordWrap = false
             };
@@ -177,9 +177,9 @@ namespace MultiSerialMonitor.Forms
                 return;
             }
             
-            Color color = data.StartsWith(">") ? Color.Cyan : 
-                         data.StartsWith("Error") ? Color.Red : 
-                         Color.LightGray;
+            Color color = data.StartsWith(">") ? ThemeManager.Colors.ConsoleCommand : 
+                         data.StartsWith("Error") ? ThemeManager.Colors.ConsoleError : 
+                         ThemeManager.Colors.ConsoleForeground;
             
             // Check if data already contains timestamp
             bool hasTimestamp = false;
@@ -227,7 +227,7 @@ namespace MultiSerialMonitor.Forms
             if (_showLineNumbers)
             {
                 // Add line number in gray color
-                _consoleOutput.SelectionColor = Color.DarkGray;
+                _consoleOutput.SelectionColor = ThemeManager.Colors.ConsoleLineNumber;
                 _consoleOutput.AppendText($"{_lineNumber,5}: ");
                 _lineNumber++;
             }
@@ -429,6 +429,29 @@ namespace MultiSerialMonitor.Forms
             _connection.StatusChanged -= OnStatusChanged;
             _connection.DataCleared -= OnDataCleared;
             base.OnFormClosed(e);
+        }
+        
+        public void ApplyTheme()
+        {
+            // Apply theme to form
+            ThemeManager.ApplyTheme(this);
+            
+            // Console output uses special console colors
+            _consoleOutput.BackColor = ThemeManager.Colors.ConsoleBackground;
+            _consoleOutput.ForeColor = ThemeManager.Colors.ConsoleForeground;
+            
+            // Apply theme to toolbar
+            var toolbar = Controls.OfType<ToolStrip>().FirstOrDefault();
+            if (toolbar != null)
+            {
+                ThemeManager.ApplyTheme(toolbar);
+            }
+            
+            // Apply theme to status strip
+            if (_statusStrip != null)
+            {
+                ThemeManager.ApplyTheme(_statusStrip);
+            }
         }
         
         public void ApplyLocalization()

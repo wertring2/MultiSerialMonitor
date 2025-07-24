@@ -1,4 +1,5 @@
 using MultiSerialMonitor.Models;
+using MultiSerialMonitor.Services;
 
 namespace MultiSerialMonitor.Forms
 {
@@ -17,6 +18,7 @@ namespace MultiSerialMonitor.Forms
             _connection = connection;
             _patterns = new List<DetectionPattern>(connection.Config.DetectionPatterns);
             InitializeComponents();
+            ApplyTheme();
         }
         
         private void InitializeComponents()
@@ -181,6 +183,39 @@ namespace MultiSerialMonitor.Forms
         {
             _connection.Config.DetectionPatterns = new List<DetectionPattern>(_patterns);
         }
+        
+        private void ApplyTheme()
+        {
+            ThemeManager.ApplyTheme(this);
+            
+            // Apply theme to DataGridView
+            if (_patternsGrid != null)
+            {
+                _patternsGrid.BackgroundColor = ThemeManager.Colors.ControlBackground;
+                _patternsGrid.GridColor = ThemeManager.Colors.ControlBorder;
+                _patternsGrid.DefaultCellStyle.BackColor = ThemeManager.Colors.ControlBackground;
+                _patternsGrid.DefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
+                _patternsGrid.DefaultCellStyle.SelectionBackColor = ThemeManager.CurrentTheme == Theme.Dark 
+                    ? Color.FromArgb(70, 70, 70) 
+                    : SystemColors.Highlight;
+                _patternsGrid.DefaultCellStyle.SelectionForeColor = ThemeManager.CurrentTheme == Theme.Dark 
+                    ? Color.White 
+                    : SystemColors.HighlightText;
+                _patternsGrid.ColumnHeadersDefaultCellStyle.BackColor = ThemeManager.Colors.PanelBackground;
+                _patternsGrid.ColumnHeadersDefaultCellStyle.ForeColor = ThemeManager.Colors.ControlForeground;
+                _patternsGrid.EnableHeadersVisualStyles = false;
+            }
+            
+            // Apply theme to buttons
+            var buttons = new[] { _addButton, _removeButton, _saveButton, _cancelButton };
+            foreach (var button in buttons)
+            {
+                if (button != null)
+                {
+                    ThemeManager.ApplyTheme(button);
+                }
+            }
+        }
     }
     
     public class DetectionPatternEditForm : Form
@@ -198,6 +233,7 @@ namespace MultiSerialMonitor.Forms
         {
             Pattern = pattern;
             InitializeComponents();
+            ApplyTheme();
             
             if (pattern != null)
             {
@@ -323,6 +359,17 @@ namespace MultiSerialMonitor.Forms
             Pattern.IsRegex = _regexCheckBox.Checked;
             Pattern.CaseSensitive = _caseSensitiveCheckBox.Checked;
             Pattern.IsEnabled = true;
+        }
+        
+        private void ApplyTheme()
+        {
+            ThemeManager.ApplyTheme(this);
+            
+            // Apply theme to all controls
+            foreach (Control control in Controls)
+            {
+                ThemeManager.ApplyTheme(control);
+            }
         }
     }
 }
