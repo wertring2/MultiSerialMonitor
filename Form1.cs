@@ -75,12 +75,21 @@ namespace MultiSerialMonitor
             
             var loadProfileItem = new ToolStripMenuItem("Load Profile");
             
+            var exportProfileItem = new ToolStripMenuItem("Export Profile...");
+            exportProfileItem.Click += OnExportProfileClick;
+            
+            var importProfileItem = new ToolStripMenuItem("Import Profile...");
+            importProfileItem.Click += OnImportProfileClick;
+            
             var manageProfilesItem = new ToolStripMenuItem("Manage Profiles...");
             manageProfilesItem.Click += OnManageProfilesClick;
             
             profileDropDown.DropDownItems.AddRange(new ToolStripItem[] {
                 saveProfileItem,
                 loadProfileItem,
+                new ToolStripSeparator(),
+                exportProfileItem,
+                importProfileItem,
                 new ToolStripSeparator(),
                 manageProfilesItem
             });
@@ -199,6 +208,7 @@ namespace MultiSerialMonitor
             panel.ConfigureDetectionRequested += (s, e) => OnPortConfigureDetectionRequested(connection);
             panel.ViewDetectionsRequested += (s, e) => OnPortViewDetectionsRequested(connection);
             panel.ClearDataRequested += (s, e) => OnPortClearDataRequested(connection);
+            panel.ExportDataRequested += (s, e) => OnPortExportDataRequested(connection);
             
             _portPanels[connection.Id] = panel;
             _portsPanel.Controls.Add(panel);
@@ -470,6 +480,73 @@ namespace MultiSerialMonitor
             }
         }
         
+        private void OnPortExportDataRequested(PortConnection connection)
+        {
+            if (connection.OutputHistory.Count == 0)
+            {
+                MessageBox.Show($"No data to export for {connection.Name}.", "Export Data", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            using var saveDialog = new SaveFileDialog
+            {
+                Filter = "Text files (*.txt)|*.txt|CSV files (*.csv)|*.csv|Log files (*.log)|*.log|All files (*.*)|*.*",
+                FileName = $"{connection.Name}_{DateTime.Now:yyyyMMdd_HHmmss}",
+                DefaultExt = "txt"
+            };
+            
+            if (saveDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                try
+                {
+                    var extension = Path.GetExtension(saveDialog.FileName).ToLower();
+                    
+                    if (extension == ".csv")
+                    {
+                        // Export as CSV with timestamp, line number, and data
+                        var csvLines = new List<string> { "Timestamp,Line Number,Data" };
+                        int lineNumber = 1;
+                        foreach (var line in connection.OutputHistory)
+                        {
+                            // Extract timestamp if present in the line
+                            var timestamp = "";
+                            var data = line;
+                            
+                            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(.*?)\](.*)");
+                            if (match.Success)
+                            {
+                                timestamp = match.Groups[1].Value;
+                                data = match.Groups[2].Value.Trim();
+                            }
+                            
+                            // Escape CSV fields
+                            timestamp = $"\"{timestamp}\"";
+                            data = $"\"{data.Replace("\"", "\"\"")}\"";
+                            
+                            csvLines.Add($"{timestamp},{lineNumber},{data}");
+                            lineNumber++;
+                        }
+                        File.WriteAllLines(saveDialog.FileName, csvLines);
+                    }
+                    else
+                    {
+                        // Export as plain text
+                        File.WriteAllLines(saveDialog.FileName, connection.OutputHistory);
+                    }
+                    
+                    MessageBox.Show($"Data exported successfully to:\n{saveDialog.FileName}\n\nTotal lines: {connection.OutputHistory.Count}", 
+                        "Export Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _statusLabel.Text = $"Exported data from {connection.Name}";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error exporting data: {ex.Message}", 
+                        "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
         private void OnClearAllClick(object? sender, EventArgs e)
         {
             if (_portPanels.Count == 0)
@@ -729,6 +806,77 @@ namespace MultiSerialMonitor
         {
             using var dialog = new ManageProfilesDialog(_configManager);
             dialog.ShowDialog(this);
+        }
+        
+        private void OnExportProfileClick(object? sender, EventArgs e)
+        {
+            var profiles = _configManager.GetAvailableProfiles();
+            if (profiles.Length == 0)
+            {
+                MessageBox.Show("No profiles available to export.", "Export Profile", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            // Let user select which profile to export
+            using var selectDialog = new SelectProfileDialog(profiles, "Select Profile to Export");
+            if (selectDialog.ShowDialog(this) == DialogResult.OK && !string.IsNullOrEmpty(selectDialog.SelectedProfile))
+            {
+                using var saveDialog = new SaveFileDialog
+                {
+                    Filter = "Profile files (*.json)|*.json|All files (*.*)|*.*",
+                    FileName = $"{selectDialog.SelectedProfile}.json",
+                    DefaultExt = "json"
+                };
+                
+                if (saveDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    try
+                    {
+                        _configManager.ExportProfile(selectDialog.SelectedProfile, saveDialog.FileName);
+                        MessageBox.Show($"Profile exported successfully to:\n{saveDialog.FileName}", 
+                            "Export Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error exporting profile: {ex.Message}", 
+                            "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+        
+        private void OnImportProfileClick(object? sender, EventArgs e)
+        {
+            using var openDialog = new OpenFileDialog
+            {
+                Filter = "Profile files (*.json)|*.json|All files (*.*)|*.*",
+                DefaultExt = "json"
+            };
+            
+            if (openDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                try
+                {
+                    string profileName = _configManager.ImportProfile(openDialog.FileName);
+                    MessageBox.Show($"Profile '{profileName}' imported successfully!", 
+                        "Import Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    // Ask if they want to load it now
+                    var result = MessageBox.Show("Would you like to load this profile now?", 
+                        "Load Profile", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    
+                    if (result == DialogResult.Yes)
+                    {
+                        LoadProfile(profileName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error importing profile: {ex.Message}", 
+                        "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)

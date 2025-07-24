@@ -192,6 +192,64 @@ namespace MultiSerialMonitor.Services
             }
         }
         
+        public void ExportProfile(string profileName, string exportPath)
+        {
+            try
+            {
+                var sourceFile = Path.Combine(_profilesPath, $"{profileName}.json");
+                if (!File.Exists(sourceFile))
+                {
+                    throw new FileNotFoundException($"Profile '{profileName}' not found.");
+                }
+                
+                File.Copy(sourceFile, exportPath, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to export profile: {ex.Message}", ex);
+            }
+        }
+        
+        public string ImportProfile(string importPath)
+        {
+            try
+            {
+                if (!File.Exists(importPath))
+                {
+                    throw new FileNotFoundException($"Import file not found: {importPath}");
+                }
+                
+                // Validate it's a valid profile
+                var json = File.ReadAllText(importPath);
+                var configs = JsonSerializer.Deserialize<List<PortConfigurationData>>(json, _jsonOptions);
+                if (configs == null || configs.Count == 0)
+                {
+                    throw new InvalidOperationException("Invalid profile file - no connections found.");
+                }
+                
+                // Generate a unique name if needed
+                string baseName = Path.GetFileNameWithoutExtension(importPath);
+                string profileName = baseName;
+                int counter = 1;
+                
+                while (File.Exists(Path.Combine(_profilesPath, $"{profileName}.json")))
+                {
+                    profileName = $"{baseName} ({counter})";
+                    counter++;
+                }
+                
+                // Copy to profiles directory
+                string destPath = Path.Combine(_profilesPath, $"{profileName}.json");
+                File.Copy(importPath, destPath);
+                
+                return profileName;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to import profile: {ex.Message}", ex);
+            }
+        }
+        
         // Configuration data class for serialization
         private class PortConfigurationData
         {

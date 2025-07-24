@@ -28,6 +28,7 @@ namespace MultiSerialMonitor.Controls
         public event EventHandler? ConfigureDetectionRequested;
         public event EventHandler? ViewDetectionsRequested;
         public event EventHandler? ClearDataRequested;
+        public event EventHandler? ExportDataRequested;
         
         public PortPanel(PortConnection connection)
         {
@@ -196,6 +197,9 @@ namespace MultiSerialMonitor.Controls
             var clearItem = new ToolStripMenuItem("Clear Data");
             clearItem.Click += (s, e) => ClearDataRequested?.Invoke(this, EventArgs.Empty);
             
+            var exportItem = new ToolStripMenuItem("Export Data...");
+            exportItem.Click += (s, e) => ExportDataRequested?.Invoke(this, EventArgs.Empty);
+            
             var removeItem = new ToolStripMenuItem("Remove");
             removeItem.Click += (s, e) => RemoveRequested?.Invoke(this, EventArgs.Empty);
             
@@ -203,6 +207,7 @@ namespace MultiSerialMonitor.Controls
                 connectItem,
                 disconnectItem,
                 new ToolStripSeparator(),
+                exportItem,
                 clearItem,
                 new ToolStripSeparator(),
                 removeItem

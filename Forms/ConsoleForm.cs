@@ -13,9 +13,12 @@ namespace MultiSerialMonitor.Forms
         private ToolStripButton _connectButton;
         private StatusStrip _statusStrip;
         private ToolStripStatusLabel _statusLabel;
+        private ToolStripButton _toggleLineNumbersButton;
         
         private readonly PortConnection _connection;
         private readonly IPortMonitor _monitor;
+        private int _lineNumber = 1;
+        private bool _showLineNumbers = true;
         
         public ConsoleForm(PortConnection connection, IPortMonitor monitor)
         {
@@ -96,12 +99,39 @@ namespace MultiSerialMonitor.Forms
             {
                 Text = "Clear"
             };
-            _clearButton.Click += (s, e) => _consoleOutput.Clear();
+            _clearButton.Click += (s, e) => 
+            {
+                _consoleOutput.Clear();
+                _lineNumber = 1;
+            };
+            
+            var exportButton = new ToolStripButton
+            {
+                Text = "Export Data"
+            };
+            exportButton.Click += OnExportClick;
+            
+            _toggleLineNumbersButton = new ToolStripButton
+            {
+                Text = "Line #",
+                CheckOnClick = true,
+                Checked = _showLineNumbers
+            };
+            _toggleLineNumbersButton.Click += (s, e) =>
+            {
+                _showLineNumbers = _toggleLineNumbersButton.Checked;
+                // Refresh display by reloading history
+                _consoleOutput.Clear();
+                _lineNumber = 1;
+                LoadHistory();
+            };
             
             toolbar.Items.AddRange(new ToolStripItem[] { 
                 _connectButton, 
                 _disconnectButton, 
                 new ToolStripSeparator(), 
+                _toggleLineNumbersButton,
+                exportButton,
                 _clearButton 
             });
             
@@ -121,6 +151,7 @@ namespace MultiSerialMonitor.Forms
         
         private void LoadHistory()
         {
+            _lineNumber = 1; // Reset line numbers when loading history
             foreach (var line in _connection.OutputHistory.TakeLast(1000))
             {
                 AppendLine(line, Color.LightGray);
@@ -182,6 +213,15 @@ namespace MultiSerialMonitor.Forms
         {
             _consoleOutput.SelectionStart = _consoleOutput.TextLength;
             _consoleOutput.SelectionLength = 0;
+            
+            if (_showLineNumbers)
+            {
+                // Add line number in gray color
+                _consoleOutput.SelectionColor = Color.DarkGray;
+                _consoleOutput.AppendText($"{_lineNumber,5}: ");
+                _lineNumber++;
+            }
+            
             _consoleOutput.SelectionColor = color;
             _consoleOutput.AppendText(text + Environment.NewLine);
             _consoleOutput.ScrollToCaret();
@@ -243,6 +283,75 @@ namespace MultiSerialMonitor.Forms
             }
         }
         
+        private void OnExportClick(object? sender, EventArgs e)
+        {
+            if (_connection.OutputHistory.Count == 0)
+            {
+                MessageBox.Show($"No data to export for {_connection.Name}.", "Export Data", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            using var saveDialog = new SaveFileDialog
+            {
+                Filter = "Text files (*.txt)|*.txt|CSV files (*.csv)|*.csv|Log files (*.log)|*.log|Rich Text Format (*.rtf)|*.rtf|All files (*.*)|*.*",
+                FileName = $"{_connection.Name}_{DateTime.Now:yyyyMMdd_HHmmss}",
+                DefaultExt = "txt"
+            };
+            
+            if (saveDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                try
+                {
+                    var extension = Path.GetExtension(saveDialog.FileName).ToLower();
+                    
+                    if (extension == ".csv")
+                    {
+                        // Export as CSV with timestamp, line number, and data
+                        var csvLines = new List<string> { "Timestamp,Line Number,Data" };
+                        int lineNumber = 1;
+                        foreach (var line in _connection.OutputHistory)
+                        {
+                            var timestamp = "";
+                            var data = line;
+                            
+                            var match = System.Text.RegularExpressions.Regex.Match(line, @"^\[(.*?)\](.*)");
+                            if (match.Success)
+                            {
+                                timestamp = match.Groups[1].Value;
+                                data = match.Groups[2].Value.Trim();
+                            }
+                            
+                            timestamp = $"\"{timestamp}\"";
+                            data = $"\"{data.Replace("\"", "\"\"")}\"";
+                            
+                            csvLines.Add($"{timestamp},{lineNumber},{data}");
+                            lineNumber++;
+                        }
+                        File.WriteAllLines(saveDialog.FileName, csvLines);
+                    }
+                    else if (extension == ".rtf")
+                    {
+                        // Export as RTF with colors preserved
+                        _consoleOutput.SaveFile(saveDialog.FileName, RichTextBoxStreamType.RichText);
+                    }
+                    else
+                    {
+                        // Export as plain text
+                        File.WriteAllLines(saveDialog.FileName, _connection.OutputHistory);
+                    }
+                    
+                    MessageBox.Show($"Data exported successfully to:\n{saveDialog.FileName}\n\nTotal lines: {_connection.OutputHistory.Count}", 
+                        "Export Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error exporting data: {ex.Message}", 
+                        "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
         private void OnDataCleared(object? sender, EventArgs e)
         {
             if (InvokeRequired)
@@ -252,6 +361,7 @@ namespace MultiSerialMonitor.Forms
             }
             
             _consoleOutput.Clear();
+            _lineNumber = 1;
         }
         
         protected override void OnFormClosed(FormClosedEventArgs e)
