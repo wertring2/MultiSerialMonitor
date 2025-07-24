@@ -12,6 +12,23 @@ namespace MultiSerialMonitor.Services
         public PortConnection Connection { get; }
         public bool IsConnected => _serialPort?.IsOpen ?? false;
         
+        public static bool IsPortAvailable(string portName)
+        {
+            try
+            {
+                using (var testPort = new SerialPort(portName))
+                {
+                    testPort.Open();
+                    testPort.Close();
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
         public SerialPortMonitor(PortConnection connection)
         {
             Connection = connection;
@@ -64,6 +81,9 @@ namespace MultiSerialMonitor.Services
                     throw new Exception($"Port {Connection.PortName} not found. Available ports: {string.Join(", ", availablePorts)}");
                 }
                 
+                // Skip availability check here as it might give false positives
+                // The actual open will catch if port is in use
+                
                 _serialPort = new SerialPort
                 {
                     PortName = Connection.PortName,
@@ -81,7 +101,18 @@ namespace MultiSerialMonitor.Services
                 _serialPort.DataReceived += OnSerialDataReceived;
                 _serialPort.ErrorReceived += OnSerialErrorReceived;
                 
-                _serialPort.Open();
+                try
+                {
+                    _serialPort.Open();
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    throw new Exception($"Port {Connection.PortName} is already in use by another application or connection.");
+                }
+                catch (IOException ioEx)
+                {
+                    throw new Exception($"Port {Connection.PortName} IO error: {ioEx.Message}");
+                }
                 
                 // Verify port is really open
                 if (!_serialPort.IsOpen)

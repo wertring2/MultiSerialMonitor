@@ -131,8 +131,40 @@ namespace MultiSerialMonitor
             }
         }
         
+        private bool IsPortInUse(string portName, ConnectionType type, out string existingConnectionName)
+        {
+            existingConnectionName = "";
+            if (type != ConnectionType.SerialPort)
+                return false;
+                
+            var existingConnection = _portPanels.Values.FirstOrDefault(panel => 
+                panel.Connection.Type == ConnectionType.SerialPort && 
+                panel.Connection.PortName.Equals(portName, StringComparison.OrdinalIgnoreCase));
+                
+            if (existingConnection != null)
+            {
+                existingConnectionName = existingConnection.Connection.Name;
+                return true;
+            }
+            
+            return false;
+        }
+        
         private async Task AddPortConnectionAsync(PortConnection connection)
         {
+            // Check if port is already in use by another connection in this application
+            if (connection.Type == ConnectionType.SerialPort && IsPortInUse(connection.PortName, connection.Type, out string existingName))
+            {
+                MessageBox.Show(
+                    $"Port {connection.PortName} is already configured for connection '{existingName}'.\n\n" +
+                    "Each serial port can only be used by one connection at a time.\n" +
+                    "Please choose a different port or remove the existing connection first.",
+                    "Port Already In Use",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+            
             // Create monitor
             IPortMonitor monitor = connection.Type == ConnectionType.SerialPort
                 ? new SerialPortMonitor(connection)
@@ -461,6 +493,36 @@ namespace MultiSerialMonitor
             }
         }
         
+        private async Task RemoveAllConnectionsAsync()
+        {
+            try
+            {
+                Cursor = Cursors.WaitCursor;
+                _statusLabel.Text = "Removing all ports...";
+                Application.DoEvents();
+                
+                // Get all connections to remove
+                var connectionsToRemove = _portPanels.Values
+                    .Select(p => p.Connection)
+                    .ToList();
+                
+                // Remove each connection
+                foreach (var connection in connectionsToRemove)
+                {
+                    await RemovePortAsync(connection);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error removing ports: {ex.Message}", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+            }
+        }
+        
         private async void LoadSavedConfiguration()
         {
             try
@@ -514,6 +576,29 @@ namespace MultiSerialMonitor
         {
             try
             {
+                // Ask user if they want to replace or append
+                DialogResult result = DialogResult.Yes;
+                if (_portPanels.Count > 0)
+                {
+                    result = MessageBox.Show(
+                        "Do you want to replace existing connections?\n\n" +
+                        "Yes - Remove existing connections and load profile\n" +
+                        "No - Add profile connections to existing ones\n" +
+                        "Cancel - Do nothing",
+                        "Load Profile",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Question);
+                    
+                    if (result == DialogResult.Cancel)
+                        return;
+                    
+                    if (result == DialogResult.Yes)
+                    {
+                        // Remove all existing connections first
+                        await RemoveAllConnectionsAsync();
+                    }
+                }
+                
                 var connections = _configManager.LoadProfile(profileName);
                 foreach (var connection in connections)
                 {
