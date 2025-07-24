@@ -7,10 +7,14 @@ namespace MultiSerialMonitor.Controls
         private Label _nameLabel;
         private Label _statusLabel;
         private Label _lastLineLabel;
+        private Label _statsLabel;
         private Button _expandButton;
         private Button _deleteButton;
         private Panel _statusIndicator;
         private ContextMenuStrip _contextMenu;
+        private int _lineCount = 0;
+        private int _packageCount = 0;
+        private DateTime? _lastTimestamp;
         
         public PortConnection Connection { get; }
         
@@ -31,7 +35,7 @@ namespace MultiSerialMonitor.Controls
         
         private void InitializeComponents()
         {
-            Height = 120; // Increased height to accommodate error messages
+            Height = 140; // Increased height to accommodate stats
             BorderStyle = BorderStyle.FixedSingle;
             Padding = new Padding(10);
             BackColor = Color.FromArgb(245, 245, 245);
@@ -77,6 +81,17 @@ namespace MultiSerialMonitor.Controls
                 MaximumSize = new Size(0, 40)
             };
             
+            // Stats label
+            _statsLabel = new Label
+            {
+                Text = "Lines: 0 | Packages: 0",
+                Font = new Font("Segoe UI", 8),
+                ForeColor = Color.DarkGray,
+                Location = new Point(10, 95),
+                Size = new Size(Width - 100, 20),
+                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+            };
+            
             // Expand button
             _expandButton = new Button
             {
@@ -109,7 +124,8 @@ namespace MultiSerialMonitor.Controls
                 _statusIndicator, 
                 _nameLabel, 
                 _statusLabel, 
-                _lastLineLabel, 
+                _lastLineLabel,
+                _statsLabel,
                 _expandButton,
                 _deleteButton 
             });
@@ -166,6 +182,15 @@ namespace MultiSerialMonitor.Controls
             }
         }
         
+        private void UpdateStatsDisplay()
+        {
+            string timestampText = _lastTimestamp.HasValue 
+                ? _lastTimestamp.Value.ToString("HH:mm:ss") 
+                : "No data";
+            
+            _statsLabel.Text = $"Time: {timestampText} | Lines: {_lineCount} | Packages: {_packageCount}";
+        }
+        
         private void OnDataReceived(object? sender, string data)
         {
             if (InvokeRequired)
@@ -173,6 +198,22 @@ namespace MultiSerialMonitor.Controls
                 Invoke(() => OnDataReceived(sender, data));
                 return;
             }
+            
+            // Update counters
+            _lineCount++;
+            
+            // Check if this is a new package (you can customize this logic)
+            // For now, we'll count every non-empty line as a package
+            if (!string.IsNullOrWhiteSpace(data))
+            {
+                _packageCount++;
+            }
+            
+            // Update timestamp
+            _lastTimestamp = DateTime.Now;
+            
+            // Update stats display
+            UpdateStatsDisplay();
             
             // Display the complete line
             _lastLineLabel.Text = data;
@@ -228,6 +269,15 @@ namespace MultiSerialMonitor.Controls
             {
                 Invoke(() => OnStatusChanged(sender, status));
                 return;
+            }
+            
+            // Reset counters when connecting
+            if (status == ConnectionStatus.Connected)
+            {
+                _lineCount = 0;
+                _packageCount = 0;
+                _lastTimestamp = null;
+                UpdateStatsDisplay();
             }
             
             _statusLabel.Text = status.ToString();
