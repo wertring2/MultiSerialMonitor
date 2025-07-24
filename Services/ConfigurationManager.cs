@@ -32,22 +32,27 @@ namespace MultiSerialMonitor.Services
         
         public void SaveConfiguration(List<PortConnection> connections)
         {
+            if (connections == null)
+                return;
+                
             try
             {
-                var configs = connections.Select(c => new PortConfigurationData
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    Type = c.Type,
-                    PortName = c.PortName,
-                    BaudRate = c.BaudRate,
-                    Parity = c.Parity,
-                    DataBits = c.DataBits,
-                    StopBits = c.StopBits,
-                    HostName = c.HostName,
-                    Port = c.Port,
-                    Config = c.Config
-                }).ToList();
+                var configs = connections
+                    .Where(c => c != null)
+                    .Select(c => new PortConfigurationData
+                    {
+                        Id = c.Id ?? Guid.NewGuid().ToString(),
+                        Name = c.Name ?? "Unnamed",
+                        Type = c.Type,
+                        PortName = c.PortName ?? "",
+                        BaudRate = c.BaudRate,
+                        Parity = c.Parity,
+                        DataBits = c.DataBits,
+                        StopBits = c.StopBits,
+                        HostName = c.HostName ?? "",
+                        Port = c.Port,
+                        Config = c.Config ?? new ConnectionConfig()
+                    }).ToList();
                 
                 var json = JsonSerializer.Serialize(configs, _jsonOptions);
                 File.WriteAllText(_configPath, json);
@@ -55,6 +60,7 @@ namespace MultiSerialMonitor.Services
             catch (Exception ex)
             {
                 // Log error but don't throw - we don't want to interrupt the app
+                Utils.ErrorHandler.LogError(ex, "SaveConfiguration");
                 System.Diagnostics.Debug.WriteLine($"Error saving configuration: {ex.Message}");
             }
         }

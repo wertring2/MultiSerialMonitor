@@ -51,7 +51,22 @@ namespace MultiSerialMonitor.Models
         
         public void OnDataReceived(string data)
         {
+            if (data == null)
+            {
+                data = string.Empty;
+            }
+            
             LastLine = data;
+            
+            // Limit history size to prevent memory issues
+            const int maxHistorySize = 10000;
+            if (OutputHistory.Count >= maxHistorySize)
+            {
+                // Remove oldest 10% when limit reached
+                var removeCount = maxHistorySize / 10;
+                OutputHistory.RemoveRange(0, removeCount);
+            }
+            
             // Check if data already contains timestamp patterns like [16:34:39] or [*07/01/2025 10:38:59.5433]
             bool hasTimestamp = false;
             if (data.Length > 0 && data[0] == '[')

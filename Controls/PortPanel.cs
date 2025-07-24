@@ -45,9 +45,16 @@ namespace MultiSerialMonitor.Controls
         private void InitializeComponents()
         {
             Height = 160; // Increased height to accommodate detection info
+            MinimumSize = new Size(300, 160);
             BorderStyle = BorderStyle.FixedSingle;
             Padding = new Padding(10);
             BackColor = Color.FromArgb(245, 245, 245);
+            
+            // Enable double buffering for smoother rendering
+            SetStyle(ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint | 
+                    ControlStyles.DoubleBuffer | 
+                    ControlStyles.ResizeRedraw, true);
             
             // Status indicator
             _statusIndicator = new Panel

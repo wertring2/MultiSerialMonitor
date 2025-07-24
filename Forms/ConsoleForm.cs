@@ -36,8 +36,14 @@ namespace MultiSerialMonitor.Forms
         private void InitializeComponents()
         {
             Text = $"Console - {_connection.Name}";
-            Size = new Size(800, 600);
+            Size = new Size(900, 700);
+            MinimumSize = new Size(600, 400);
             StartPosition = FormStartPosition.CenterScreen;
+            
+            // Enable double buffering
+            SetStyle(ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint | 
+                    ControlStyles.DoubleBuffer, true);
             
             // Console output
             _consoleOutput = new RichTextBox
@@ -245,15 +251,38 @@ namespace MultiSerialMonitor.Forms
         {
             if (string.IsNullOrWhiteSpace(_commandInput.Text)) return;
             
+            var command = _commandInput.Text.Trim();
+            
+            // Validate command length
+            if (command.Length > 1000)
+            {
+                MessageBox.Show("Command is too long. Maximum 1000 characters allowed.", 
+                    "Invalid Command", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            
             try
             {
-                await _monitor.SendCommandAsync(_commandInput.Text);
+                _commandInput.Enabled = false;
+                _sendButton.Enabled = false;
+                
+                await _monitor.SendCommandAsync(command);
                 _commandInput.Clear();
+                _commandInput.Focus();
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show($"Cannot send command: {ex.Message}", "Connection Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error sending command: {ex.Message}", "Error", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Utils.ErrorHandler.ShowError(this, ex, "Send Command Error");
+            }
+            finally
+            {
+                _commandInput.Enabled = _monitor.IsConnected;
+                _sendButton.Enabled = _monitor.IsConnected;
             }
         }
         

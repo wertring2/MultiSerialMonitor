@@ -207,10 +207,24 @@ namespace MultiSerialMonitor.Forms
         
         private void OnOkClick(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(_nameTextBox.Text))
+            // Validate connection name
+            var name = _nameTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
             {
                 MessageBox.Show("Please enter a name for this connection.", "Validation Error", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _nameTextBox.Focus();
+                DialogResult = DialogResult.None;
+                return;
+            }
+            
+            if (!Utils.ValidationHelper.IsValidConnectionName(name))
+            {
+                MessageBox.Show("Connection name contains invalid characters or is too long.\n" +
+                               "Use only letters, numbers, spaces, and basic punctuation.", 
+                               "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _nameTextBox.Focus();
+                _nameTextBox.SelectAll();
                 DialogResult = DialogResult.None;
                 return;
             }
@@ -227,7 +241,7 @@ namespace MultiSerialMonitor.Forms
                 
                 Connection = new PortConnection
                 {
-                    Name = _nameTextBox.Text,
+                    Name = name,
                     Type = ConnectionType.SerialPort,
                     PortName = _portNameCombo.SelectedItem.ToString()!,
                     BaudRate = int.Parse(_baudRateCombo.SelectedItem.ToString()!),
@@ -238,19 +252,32 @@ namespace MultiSerialMonitor.Forms
             }
             else // Telnet
             {
-                if (string.IsNullOrWhiteSpace(_hostTextBox.Text))
+                var hostname = _hostTextBox.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(hostname))
                 {
                     MessageBox.Show("Please enter a host name or IP address.", "Validation Error", 
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _hostTextBox.Focus();
+                    DialogResult = DialogResult.None;
+                    return;
+                }
+                
+                if (!Utils.ValidationHelper.IsValidHostname(hostname))
+                {
+                    MessageBox.Show("Invalid hostname or IP address.\n" +
+                                   "Please enter a valid hostname (e.g., example.com) or IP address (e.g., 192.168.1.1).", 
+                                   "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _hostTextBox.Focus();
+                    _hostTextBox.SelectAll();
                     DialogResult = DialogResult.None;
                     return;
                 }
                 
                 Connection = new PortConnection
                 {
-                    Name = _nameTextBox.Text,
+                    Name = name,
                     Type = ConnectionType.Telnet,
-                    HostName = _hostTextBox.Text,
+                    HostName = hostname,
                     Port = (int)_portNumeric.Value
                 };
             }

@@ -221,12 +221,32 @@ namespace MultiSerialMonitor.Services
                 throw new InvalidOperationException("Serial port is not connected");
             }
             
+            if (string.IsNullOrEmpty(command))
+            {
+                throw new ArgumentException("Command cannot be empty");
+            }
+            
             await Task.Run(() =>
             {
                 try
                 {
+                    // Add timeout for write operation
+                    _serialPort.WriteTimeout = 5000; // 5 seconds
                     _serialPort.WriteLine(command);
                     Connection.OnDataReceived($"> {command}");
+                }
+                catch (TimeoutException)
+                {
+                    var error = "Timeout sending command - device not responding";
+                    Connection.OnDataReceived($"Error: {error}");
+                    throw new TimeoutException(error);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    var error = "Port was closed unexpectedly";
+                    Connection.OnDataReceived($"Error: {error}");
+                    Connection.SetStatus(ConnectionStatus.Error);
+                    throw new InvalidOperationException(error, ex);
                 }
                 catch (Exception ex)
                 {

@@ -29,8 +29,14 @@ namespace MultiSerialMonitor
         private void InitializeCustomComponents()
         {
             Text = "Multi Serial Monitor";
-            Size = new Size(1000, 700);
+            Size = new Size(1200, 800);
+            MinimumSize = new Size(800, 600);
             StartPosition = FormStartPosition.CenterScreen;
+            
+            // Enable double buffering for smoother resizing
+            SetStyle(ControlStyles.AllPaintingInWmPaint | 
+                    ControlStyles.UserPaint | 
+                    ControlStyles.DoubleBuffer, true);
             
             // Toolbar
             _toolbar = new ToolStrip();
@@ -130,14 +136,50 @@ namespace MultiSerialMonitor
             Controls.Add(_portsPanel);
             Controls.Add(_toolbar);
             Controls.Add(_statusStrip);
+            
+            // Handle resize events
+            Resize += OnFormResize;
+            _portsPanel.Resize += OnPortsPanelResize;
+        }
+        
+        private void OnFormResize(object? sender, EventArgs e)
+        {
+            // Adjust port panels width when form is resized
+            if (WindowState != FormWindowState.Minimized)
+            {
+                UpdatePortPanelWidths();
+            }
+        }
+        
+        private void OnPortsPanelResize(object? sender, EventArgs e)
+        {
+            UpdatePortPanelWidths();
+        }
+        
+        private void UpdatePortPanelWidths()
+        {
+            var newWidth = _portsPanel.ClientSize.Width - 40;
+            if (newWidth < 300) newWidth = 300; // Minimum width
+            
+            foreach (var panel in _portPanels.Values)
+            {
+                panel.Width = newWidth;
+            }
         }
         
         private async void OnAddPortClick(object? sender, EventArgs e)
         {
-            using var dialog = new AddPortForm();
-            if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Connection != null)
+            try
             {
-                await AddPortConnectionAsync(dialog.Connection);
+                using var dialog = new AddPortForm();
+                if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Connection != null)
+                {
+                    await AddPortConnectionAsync(dialog.Connection);
+                }
+            }
+            catch (Exception ex)
+            {
+                Utils.ErrorHandler.ShowError(this, ex, "Add Port Error");
             }
         }
         
