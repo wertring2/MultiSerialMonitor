@@ -16,11 +16,13 @@ namespace MultiSerialMonitor
         private readonly Dictionary<string, IPortMonitor> _monitors = new();
         private readonly Dictionary<string, PortPanel> _portPanels = new();
         private readonly Dictionary<string, ConsoleForm> _consoleForms = new();
+        private readonly ConfigurationManager _configManager = new();
         
         public Form1()
         {
             InitializeComponent();
             InitializeCustomComponents();
+            LoadSavedConfiguration();
         }
         
         private void InitializeCustomComponents()
@@ -60,10 +62,37 @@ namespace MultiSerialMonitor
             };
             clearAllButton.Click += OnClearAllClick;
             
+            // Profile management dropdown
+            var profileDropDown = new ToolStripDropDownButton
+            {
+                Text = "Profiles",
+                DisplayStyle = ToolStripItemDisplayStyle.Text
+            };
+            
+            var saveProfileItem = new ToolStripMenuItem("Save Profile...");
+            saveProfileItem.Click += OnSaveProfileClick;
+            
+            var loadProfileItem = new ToolStripMenuItem("Load Profile");
+            
+            var manageProfilesItem = new ToolStripMenuItem("Manage Profiles...");
+            manageProfilesItem.Click += OnManageProfilesClick;
+            
+            profileDropDown.DropDownItems.AddRange(new ToolStripItem[] {
+                saveProfileItem,
+                loadProfileItem,
+                new ToolStripSeparator(),
+                manageProfilesItem
+            });
+            
+            // Update load profile submenu dynamically
+            profileDropDown.DropDownOpening += (s, e) => UpdateLoadProfileMenu(loadProfileItem);
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
                 refreshButton,
+                new ToolStripSeparator(),
+                profileDropDown,
                 new ToolStripSeparator(),
                 clearAllButton,
                 removeAllButton 
@@ -126,6 +155,9 @@ namespace MultiSerialMonitor
             
             _portPanels[connection.Id] = panel;
             _portsPanel.Controls.Add(panel);
+            
+            // Auto-save configuration
+            SaveConfiguration();
             
             // Auto-connect
             try
@@ -325,6 +357,9 @@ namespace MultiSerialMonitor
                 }
                 _portPanels.Remove(connection.Id);
             }
+            
+            // Auto-save configuration after removal
+            SaveConfiguration();
         }
         
         private void OnRefreshClick(object? sender, EventArgs e)
@@ -339,7 +374,11 @@ namespace MultiSerialMonitor
         private void OnPortConfigureDetectionRequested(PortConnection connection)
         {
             using var configForm = new DetectionConfigForm(connection);
-            configForm.ShowDialog(this);
+            if (configForm.ShowDialog(this) == DialogResult.OK)
+            {
+                // Save configuration after detection patterns are modified
+                SaveConfiguration();
+            }
         }
         
         private void OnPortViewDetectionsRequested(PortConnection connection)
@@ -422,8 +461,111 @@ namespace MultiSerialMonitor
             }
         }
         
+        private async void LoadSavedConfiguration()
+        {
+            try
+            {
+                var savedConnections = _configManager.LoadConfiguration();
+                foreach (var connection in savedConnections)
+                {
+                    await AddPortConnectionAsync(connection);
+                }
+                
+                if (savedConnections.Count > 0)
+                {
+                    _statusLabel.Text = $"Loaded {savedConnections.Count} saved connection(s)";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading saved configuration: {ex.Message}", 
+                    "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+        
+        private void SaveConfiguration()
+        {
+            var connections = _portPanels.Values.Select(p => p.Connection).ToList();
+            _configManager.SaveConfiguration(connections);
+        }
+        
+        private void UpdateLoadProfileMenu(ToolStripMenuItem loadProfileItem)
+        {
+            loadProfileItem.DropDownItems.Clear();
+            
+            var profiles = _configManager.GetAvailableProfiles();
+            if (profiles.Length == 0)
+            {
+                var noProfilesItem = new ToolStripMenuItem("(No profiles)") { Enabled = false };
+                loadProfileItem.DropDownItems.Add(noProfilesItem);
+            }
+            else
+            {
+                foreach (var profile in profiles)
+                {
+                    var profileItem = new ToolStripMenuItem(profile);
+                    profileItem.Click += (s, e) => LoadProfile(profile);
+                    loadProfileItem.DropDownItems.Add(profileItem);
+                }
+            }
+        }
+        
+        private async void LoadProfile(string profileName)
+        {
+            try
+            {
+                var connections = _configManager.LoadProfile(profileName);
+                foreach (var connection in connections)
+                {
+                    await AddPortConnectionAsync(connection);
+                }
+                
+                _statusLabel.Text = $"Loaded profile '{profileName}' with {connections.Count} connection(s)";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading profile: {ex.Message}", 
+                    "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        
+        private void OnSaveProfileClick(object? sender, EventArgs e)
+        {
+            if (_portPanels.Count == 0)
+            {
+                MessageBox.Show("No connections to save.", "Save Profile", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            using var dialog = new SaveProfileDialog();
+            if (dialog.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.ProfileName))
+            {
+                try
+                {
+                    var connections = _portPanels.Values.Select(p => p.Connection).ToList();
+                    _configManager.SaveProfile(dialog.ProfileName, connections);
+                    _statusLabel.Text = $"Saved profile '{dialog.ProfileName}'";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error saving profile: {ex.Message}", 
+                        "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
+        private void OnManageProfilesClick(object? sender, EventArgs e)
+        {
+            using var dialog = new ManageProfilesDialog(_configManager);
+            dialog.ShowDialog(this);
+        }
+        
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
+            // Save configuration before closing
+            SaveConfiguration();
+            
             // Close all console forms
             foreach (var form in _consoleForms.Values.ToList())
             {
