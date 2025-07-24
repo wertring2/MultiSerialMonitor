@@ -238,6 +238,9 @@ namespace MultiSerialMonitor.Controls
             // Add hover effects
             MouseEnter += (s, e) => BackColor = Color.FromArgb(235, 235, 235);
             MouseLeave += (s, e) => BackColor = Color.FromArgb(245, 245, 245);
+            
+            // Apply initial layout adjustments
+            AdjustLayoutForSize();
         }
         
         private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -569,6 +572,79 @@ namespace MultiSerialMonitor.Controls
             _lastLineLabel.Text = "";
             UpdateStatsDisplay();
             UpdateDetectionDisplay();
+        }
+        
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            AdjustLayoutForSize();
+        }
+        
+        private void AdjustLayoutForSize()
+        {
+            // Check if controls are initialized
+            if (_expandButton == null || _clearButton == null || _statsLabel == null)
+                return;
+                
+            if (Width < 350)
+            {
+                // Compact mode for very small panels
+                _expandButton.Text = "▶";
+                _expandButton.Size = new Size(30, 23);
+                _clearButton.Visible = false;
+                _statsLabel.Visible = false;
+            }
+            else if (Width < 400)
+            {
+                // Small mode
+                _expandButton.Text = "Open";
+                _expandButton.Size = new Size(45, 23);
+                _clearButton.Visible = true;
+                _clearButton.Text = "Clr";
+                _clearButton.Size = new Size(35, 23);
+                _statsLabel.Visible = true;
+            }
+            else
+            {
+                // Normal mode
+                _expandButton.Text = LocalizationManager.GetString("Expand");
+                _expandButton.Size = new Size(60, 23);
+                _clearButton.Visible = true;
+                _clearButton.Text = LocalizationManager.GetString("Clear");
+                _clearButton.Size = new Size(50, 23);
+                _statsLabel.Visible = true;
+            }
+            
+            // Adjust button positions based on visibility
+            int rightMargin = 40;
+            if (_deleteButton != null)
+            {
+                _deleteButton.Location = new Point(Width - rightMargin, 10);
+            }
+            
+            if (_expandButton != null && _expandButton.Visible)
+            {
+                rightMargin += _expandButton.Width + 5;
+                _expandButton.Location = new Point(Width - rightMargin, 10);
+            }
+            
+            if (_clearButton != null && _clearButton.Visible)
+            {
+                rightMargin += _clearButton.Width + 5;
+                _clearButton.Location = new Point(Width - rightMargin, 10);
+            }
+            
+            // Adjust label widths
+            if (_lastLineLabel != null)
+                _lastLineLabel.Width = Width - 100;
+            if (_statsLabel != null)
+                _statsLabel.Width = Width - 100;
+            if (_detectionLabel != null)
+                _detectionLabel.Width = Width - 80;
+            
+            // Configure detection button stays at the right of detection label
+            if (_configDetectionButton != null)
+                _configDetectionButton.Location = new Point(Width - 40, 115);
         }
         
         protected override void Dispose(bool disposing)

@@ -166,6 +166,18 @@ namespace MultiSerialMonitor.Localization
                 { Language.Thai, "ส่งออกข้อมูล..." }
             };
             
+            _translations["GridView"] = new Dictionary<Language, string>
+            {
+                { Language.English, "Grid View" },
+                { Language.Thai, "มุมมองตาราง" }
+            };
+            
+            _translations["ListView"] = new Dictionary<Language, string>
+            {
+                { Language.English, "List View" },
+                { Language.Thai, "มุมมองรายการ" }
+            };
+            
             _translations["Remove"] = new Dictionary<Language, string>
             {
                 { Language.English, "Remove" },

@@ -8,6 +8,12 @@ using MultiSerialMonitor.Localization;
 
 namespace MultiSerialMonitor
 {
+    public enum ViewMode
+    {
+        List,
+        Grid
+    }
+    
     public partial class Form1 : Form, ILocalizable
     {
         private FlowLayoutPanel _portsPanel;
@@ -15,11 +21,15 @@ namespace MultiSerialMonitor
         private StatusStrip _statusStrip;
         private ToolStripStatusLabel _statusLabel;
         private ToolStripDropDownButton _languageDropDown;
+        private ToolStripButton? _viewModeButton;
+        private ViewMode _currentViewMode = ViewMode.List;
         
         private readonly Dictionary<string, IPortMonitor> _monitors = new();
         private readonly Dictionary<string, PortPanel> _portPanels = new();
         private readonly Dictionary<string, ConsoleForm> _consoleForms = new();
         private readonly ConfigurationManager _configManager = new();
+        private System.Windows.Forms.Timer? _resizeTimer;
+        private bool _isResizing = false;
         
         public Form1()
         {
@@ -28,6 +38,7 @@ namespace MultiSerialMonitor
             InitializeCustomComponents();
             ApplyLocalization();
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
+            LoadViewModePreference();
             LoadSavedConfiguration();
         }
         
@@ -130,10 +141,21 @@ namespace MultiSerialMonitor
                 _languageDropDown.DropDownItems.Add(item);
             }
             
+            // View mode button
+            _viewModeButton = new ToolStripButton
+            {
+                Text = "Grid View",
+                DisplayStyle = ToolStripItemDisplayStyle.Text,
+                ToolTipText = "Switch between List and Grid view"
+            };
+            _viewModeButton.Click += OnViewModeClick;
+            
             _toolbar.Items.AddRange(new ToolStripItem[] { 
                 addButton, 
                 new ToolStripSeparator(), 
                 refreshButton,
+                new ToolStripSeparator(),
+                _viewModeButton,
                 new ToolStripSeparator(),
                 profileDropDown,
                 new ToolStripSeparator(),
@@ -176,23 +198,98 @@ namespace MultiSerialMonitor
             // Adjust port panels width when form is resized
             if (WindowState != FormWindowState.Minimized)
             {
-                UpdatePortPanelWidths();
+                // Use debouncing to prevent excessive updates during resize
+                if (_resizeTimer == null)
+                {
+                    _resizeTimer = new System.Windows.Forms.Timer();
+                    _resizeTimer.Interval = 100; // 100ms debounce
+                    _resizeTimer.Tick += (s, args) =>
+                    {
+                        _resizeTimer.Stop();
+                        _isResizing = false;
+                        UpdatePortPanelWidths();
+                    };
+                }
+                
+                _isResizing = true;
+                _resizeTimer.Stop();
+                _resizeTimer.Start();
             }
         }
         
         private void OnPortsPanelResize(object? sender, EventArgs e)
         {
-            UpdatePortPanelWidths();
+            if (!_isResizing)
+            {
+                UpdatePortPanelWidths();
+            }
         }
         
         private void UpdatePortPanelWidths()
         {
-            var newWidth = _portsPanel.ClientSize.Width - 40;
-            if (newWidth < 300) newWidth = 300; // Minimum width
+            // Use the same logic as ApplyViewMode but without changing layout direction
+            _portsPanel.SuspendLayout();
             
-            foreach (var panel in _portPanels.Values)
+            try
             {
-                panel.Width = newWidth;
+                if (_currentViewMode == ViewMode.List)
+                {
+                    // Calculate optimal width for list view
+                    int availableWidth = _portsPanel.ClientSize.Width;
+                    int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                    int padding = 40;
+                    int optimalWidth = availableWidth - padding;
+                    
+                    // Account for scroll bar if needed
+                    if (_portPanels.Count * 170 > _portsPanel.ClientSize.Height)
+                    {
+                        optimalWidth -= scrollBarWidth;
+                    }
+                    
+                    foreach (var panel in _portPanels.Values)
+                    {
+                        panel.Width = Math.Max(300, optimalWidth);
+                    }
+                }
+                else
+                {
+                    // Calculate optimal grid layout
+                    int availableWidth = _portsPanel.ClientSize.Width;
+                    int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                    int minPanelWidth = 300;
+                    int maxPanelWidth = 450;
+                    int spacing = 10;
+                    
+                    // Try different column counts to find optimal layout
+                    int bestColumns = 1;
+                    int bestPanelWidth = minPanelWidth;
+                    
+                    for (int cols = 1; cols <= 10; cols++)
+                    {
+                        int totalSpacing = spacing * (cols + 1);
+                        int usableWidth = availableWidth - totalSpacing - scrollBarWidth;
+                        int panelWidth = usableWidth / cols;
+                        
+                        if (panelWidth >= minPanelWidth && panelWidth <= maxPanelWidth)
+                        {
+                            bestColumns = cols;
+                            bestPanelWidth = panelWidth;
+                        }
+                        else if (panelWidth < minPanelWidth)
+                        {
+                            break;
+                        }
+                    }
+                    
+                    foreach (var panel in _portPanels.Values)
+                    {
+                        panel.Width = bestPanelWidth;
+                    }
+                }
+            }
+            finally
+            {
+                _portsPanel.ResumeLayout(true);
             }
         }
         
@@ -268,9 +365,47 @@ namespace MultiSerialMonitor
             _monitors[connection.Id] = monitor;
             
             // Create panel
+            // Calculate initial panel width based on current view mode
+            int panelWidth = 300; // Default minimum
+            if (_currentViewMode == ViewMode.List)
+            {
+                int availableWidth = _portsPanel.ClientSize.Width;
+                int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                int padding = 40;
+                panelWidth = Math.Max(300, availableWidth - padding - scrollBarWidth);
+            }
+            else
+            {
+                // Grid view - use same calculation as ApplyViewMode
+                int availableWidth = _portsPanel.ClientSize.Width;
+                int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                int minPanelWidth = 300;
+                int maxPanelWidth = 450;
+                int spacing = 10;
+                
+                for (int cols = 1; cols <= 10; cols++)
+                {
+                    int totalSpacing = spacing * (cols + 1);
+                    int usableWidth = availableWidth - totalSpacing - scrollBarWidth;
+                    int testWidth = usableWidth / cols;
+                    
+                    if (testWidth >= minPanelWidth && testWidth <= maxPanelWidth)
+                    {
+                        panelWidth = testWidth;
+                    }
+                    else if (testWidth < minPanelWidth)
+                    {
+                        break;
+                    }
+                }
+            }
+            
             var panel = new PortPanel(connection)
             {
-                Width = _portsPanel.ClientSize.Width - 40
+                Width = panelWidth,
+                Margin = _currentViewMode == ViewMode.List 
+                    ? new Padding(10, 5, 10, 5)
+                    : new Padding(5)
             };
             panel.ExpandRequested += OnPortExpandRequested;
             panel.ConnectRequested += async (s, e) => await ConnectPortAsync(connection);
@@ -959,6 +1094,10 @@ namespace MultiSerialMonitor
             // Save configuration before closing
             SaveConfiguration();
             
+            // Dispose resize timer
+            _resizeTimer?.Stop();
+            _resizeTimer?.Dispose();
+            
             // Close all console forms
             foreach (var form in _consoleForms.Values.ToList())
             {
@@ -995,6 +1134,17 @@ namespace MultiSerialMonitor
                         item.Text = LocalizationManager.GetString("Profiles");
                     else if (item.Text == "Language" || item.Text == "ภาษา")
                         item.Text = LocalizationManager.GetString("Language");
+                }
+                
+                // Update view mode button
+                if (_viewModeButton != null)
+                {
+                    _viewModeButton.Text = _currentViewMode == ViewMode.List 
+                        ? LocalizationManager.GetString("GridView")
+                        : LocalizationManager.GetString("ListView");
+                    _viewModeButton.ToolTipText = LocalizationManager.CurrentLanguage == Language.Thai 
+                        ? "สลับระหว่างมุมมองรายการและตาราง"
+                        : "Switch between List and Grid view";
                 }
                 
                 // Update profile dropdown items
@@ -1086,6 +1236,159 @@ namespace MultiSerialMonitor
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error loading language preference: {ex.Message}");
+            }
+        }
+        
+        private void OnViewModeClick(object? sender, EventArgs e)
+        {
+            // Toggle view mode
+            _currentViewMode = _currentViewMode == ViewMode.List ? ViewMode.Grid : ViewMode.List;
+            
+            // Update button text
+            if (_viewModeButton != null)
+            {
+                _viewModeButton.Text = _currentViewMode == ViewMode.List 
+                    ? LocalizationManager.GetString("GridView")
+                    : LocalizationManager.GetString("ListView");
+            }
+            
+            // Apply new layout
+            ApplyViewMode();
+            SaveViewModePreference();
+        }
+        
+        private void ApplyViewMode()
+        {
+            _portsPanel.SuspendLayout();
+            
+            try
+            {
+                if (_currentViewMode == ViewMode.List)
+                {
+                    // List view settings
+                    _portsPanel.FlowDirection = FlowDirection.TopDown;
+                    _portsPanel.WrapContents = false;
+                    _portsPanel.AutoScroll = true;
+                    
+                    // Calculate optimal width for list view
+                    int availableWidth = _portsPanel.ClientSize.Width;
+                    int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                    int padding = 40;
+                    int optimalWidth = availableWidth - padding;
+                    
+                    // Account for scroll bar if needed
+                    if (_portPanels.Count * 170 > _portsPanel.ClientSize.Height)
+                    {
+                        optimalWidth -= scrollBarWidth;
+                    }
+                    
+                    foreach (var panel in _portPanels.Values)
+                    {
+                        panel.Width = Math.Max(300, optimalWidth);
+                        panel.Height = 160;
+                        panel.Margin = new Padding(10, 5, 10, 5);
+                    }
+                }
+                else
+                {
+                    // Grid view settings
+                    _portsPanel.FlowDirection = FlowDirection.LeftToRight;
+                    _portsPanel.WrapContents = true;
+                    _portsPanel.AutoScroll = true;
+                    
+                    // Calculate optimal grid layout
+                    int availableWidth = _portsPanel.ClientSize.Width;
+                    int scrollBarWidth = SystemInformation.VerticalScrollBarWidth;
+                    int minPanelWidth = 300;
+                    int maxPanelWidth = 450;
+                    int spacing = 10;
+                    
+                    // Try different column counts to find optimal layout
+                    int bestColumns = 1;
+                    int bestPanelWidth = minPanelWidth;
+                    
+                    for (int cols = 1; cols <= 10; cols++)
+                    {
+                        int totalSpacing = spacing * (cols + 1);
+                        int usableWidth = availableWidth - totalSpacing - scrollBarWidth;
+                        int panelWidth = usableWidth / cols;
+                        
+                        if (panelWidth >= minPanelWidth && panelWidth <= maxPanelWidth)
+                        {
+                            bestColumns = cols;
+                            bestPanelWidth = panelWidth;
+                        }
+                        else if (panelWidth < minPanelWidth)
+                        {
+                            break;
+                        }
+                    }
+                    
+                    foreach (var panel in _portPanels.Values)
+                    {
+                        panel.Width = bestPanelWidth;
+                        panel.Height = 160;
+                        panel.Margin = new Padding(spacing / 2);
+                    }
+                }
+                
+                // Force immediate layout update
+                _portsPanel.PerformLayout();
+            }
+            finally
+            {
+                _portsPanel.ResumeLayout(true);
+            }
+        }
+        
+        private void SaveViewModePreference()
+        {
+            try
+            {
+                var appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MultiSerialMonitor"
+                );
+                Directory.CreateDirectory(appDataPath);
+                
+                var prefsPath = Path.Combine(appDataPath, "viewmode.pref");
+                File.WriteAllText(prefsPath, _currentViewMode.ToString());
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving view mode preference: {ex.Message}");
+            }
+        }
+        
+        private void LoadViewModePreference()
+        {
+            try
+            {
+                var appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MultiSerialMonitor"
+                );
+                var prefsPath = Path.Combine(appDataPath, "viewmode.pref");
+                
+                if (File.Exists(prefsPath))
+                {
+                    var viewModeStr = File.ReadAllText(prefsPath).Trim();
+                    if (Enum.TryParse<ViewMode>(viewModeStr, out var viewMode))
+                    {
+                        _currentViewMode = viewMode;
+                        if (_viewModeButton != null)
+                        {
+                            _viewModeButton.Text = _currentViewMode == ViewMode.List 
+                                ? LocalizationManager.GetString("GridView")
+                                : LocalizationManager.GetString("ListView");
+                        }
+                        ApplyViewMode();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error loading view mode preference: {ex.Message}");
             }
         }
     }
