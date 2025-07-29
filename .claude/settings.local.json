@@ -3,7 +3,11 @@
     "allow": [
       "Bash(dotnet build)",
       "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build)",
-      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build --no-incremental)"
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build --no-incremental)",
+      "Bash(touch:*)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe restore)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build --configuration Release)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe publish --configuration Release --runtime win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:EnableCompressionInSingleFile=true --verbosity minimal)"
     ],
     "deny": []
   }

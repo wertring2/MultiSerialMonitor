@@ -7,6 +7,24 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>favicon.ico</ApplicationIcon>
+    
+    <!-- Application Information -->
+    <AssemblyTitle>Multi Serial Monitor</AssemblyTitle>
+    <AssemblyDescription>Professional Serial Port and Telnet Monitoring Application</AssemblyDescription>
+    <AssemblyCompany>Q WAVE COMPANY LIMITED</AssemblyCompany>
+    <AssemblyProduct>Multi Serial Monitor</AssemblyProduct>
+    <AssemblyCopyright>© 2025 Q WAVE COMPANY LIMITED. All rights reserved.</AssemblyCopyright>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.0</Version>
+    
+    <!-- Publishing Configuration -->
+    <PublishSelfContained>true</PublishSelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
