@@ -33,6 +33,9 @@ namespace MultiSerialMonitor
         private ToolStripButton? _darkModeButton;
         private AppSettings _appSettings;
         
+        // Static clipboard for detection patterns
+        private static List<DetectionPattern>? _copiedDetectionPatterns;
+        
         public Form1()
         {
             InitializeComponent();
@@ -44,6 +47,9 @@ namespace MultiSerialMonitor
             LocalizationManager.LanguageChanged += (s, e) => ApplyLocalization();
             LoadViewModePreference();
             LoadSavedConfiguration();
+            
+            // Subscribe to port list update requests
+            PortConnection.PortListUpdateRequired += OnPortListUpdateRequired;
         }
         
         private void InitializeCustomComponents()
@@ -450,6 +456,8 @@ namespace MultiSerialMonitor
             panel.ViewDetectionsRequested += (s, e) => OnPortViewDetectionsRequested(connection);
             panel.ClearDataRequested += (s, e) => OnPortClearDataRequested(connection);
             panel.ExportDataRequested += (s, e) => OnPortExportDataRequested(connection);
+            panel.CopyDetectionConfigRequested += (s, e) => CopyDetectionConfiguration(connection);
+            panel.PasteDetectionConfigRequested += (s, e) => PasteDetectionConfiguration(connection);
             
             _portPanels[connection.Id] = panel;
             _portsPanel.Controls.Add(panel);
@@ -491,7 +499,7 @@ namespace MultiSerialMonitor
                 // Show options to user for manual additions
                 var result = MessageBox.Show(
                     $"Failed to connect to {connection.Name}.\n\n" +
-                    $"Error: {ex.Message}\n\n" +
+                    $"{ex.Message}\n\n" +
                     "Would you like to:\n" +
                     "• Retry - Try connecting again\n" +
                     "• Ignore - Keep the port but don't connect\n" +
@@ -569,7 +577,8 @@ namespace MultiSerialMonitor
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Failed to connect: {ex.Message}", "Connection Error", 
+                    // Show user-friendly error message
+                    MessageBox.Show($"Connection Failed\n\n{ex.Message}", "Connection Error", 
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     _statusLabel.Text = $"Failed to connect to {connection.Name}";
                 }
@@ -1129,6 +1138,9 @@ namespace MultiSerialMonitor
             // Save configuration before closing
             SaveConfiguration();
             
+            // Unsubscribe from events
+            PortConnection.PortListUpdateRequired -= OnPortListUpdateRequired;
+            
             // Dispose resize timer
             _resizeTimer?.Stop();
             _resizeTimer?.Dispose();
@@ -1499,6 +1511,112 @@ namespace MultiSerialMonitor
         {
             using var aboutForm = new AboutForm();
             aboutForm.ShowDialog(this);
+        }
+        
+        public void CopyDetectionConfiguration(PortConnection connection)
+        {
+            if (connection.Config.DetectionPatterns != null && connection.Config.DetectionPatterns.Count > 0)
+            {
+                // Deep copy the detection patterns to avoid reference issues
+                _copiedDetectionPatterns = connection.Config.DetectionPatterns
+                    .Select(pattern => new DetectionPattern
+                    {
+                        Id = Guid.NewGuid().ToString(), // Generate new ID for the copy
+                        Name = pattern.Name,
+                        Pattern = pattern.Pattern,
+                        IsRegex = pattern.IsRegex,
+                        CaseSensitive = pattern.CaseSensitive,
+                        IsEnabled = pattern.IsEnabled,
+                        NotificationColor = pattern.NotificationColor
+                    })
+                    .ToList();
+                
+                _statusLabel.Text = $"Copied {_copiedDetectionPatterns.Count} detection pattern(s) from {connection.Name}";
+                
+                // Refresh all port panels context menus to enable/disable paste option
+                RefreshAllPortPanelsContextMenu();
+            }
+            else
+            {
+                _copiedDetectionPatterns = null;
+                _statusLabel.Text = $"No detection patterns to copy from {connection.Name}";
+                
+                // Refresh all port panels context menus to disable paste option
+                RefreshAllPortPanelsContextMenu();
+            }
+        }
+        
+        public void PasteDetectionConfiguration(PortConnection connection)
+        {
+            if (_copiedDetectionPatterns == null || _copiedDetectionPatterns.Count == 0)
+            {
+                MessageBox.Show("No detection patterns in clipboard. Copy patterns from another port first.", 
+                    "Paste Detection Configuration", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            
+            var result = MessageBox.Show(
+                $"This will replace all existing detection patterns in {connection.Name} with {_copiedDetectionPatterns.Count} copied pattern(s).\n\n" +
+                "Do you want to continue?",
+                "Paste Detection Configuration",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                // Clear existing patterns and add copied ones
+                connection.Config.DetectionPatterns.Clear();
+                
+                foreach (var pattern in _copiedDetectionPatterns)
+                {
+                    // Create a new copy with unique ID
+                    connection.Config.DetectionPatterns.Add(new DetectionPattern
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Name = pattern.Name,
+                        Pattern = pattern.Pattern,
+                        IsRegex = pattern.IsRegex,
+                        CaseSensitive = pattern.CaseSensitive,
+                        IsEnabled = pattern.IsEnabled,
+                        NotificationColor = pattern.NotificationColor
+                    });
+                }
+                
+                // Save configuration
+                SaveConfiguration();
+                
+                _statusLabel.Text = $"Pasted {_copiedDetectionPatterns.Count} detection pattern(s) to {connection.Name}";
+            }
+        }
+        
+        public static bool HasCopiedDetectionPatterns()
+        {
+            return _copiedDetectionPatterns != null && _copiedDetectionPatterns.Count > 0;
+        }
+        
+        private void RefreshAllPortPanelsContextMenu()
+        {
+            // Refresh context menu for all port panels to update paste button state
+            foreach (var panel in _portPanels.Values)
+            {
+                // Force context menu to update by calling UpdateContextMenu if it's accessible
+                // Since UpdateContextMenu is private, we'll trigger it indirectly by simulating a status change
+                panel.Connection.SetStatus(panel.Connection.Status);
+            }
+        }
+        
+        private void OnPortListUpdateRequired(object? sender, EventArgs e)
+        {
+            // This event is triggered when a device disconnection is detected
+            // We don't need to do automatic refresh here as it might be disruptive
+            // Instead, we'll just update the status message to inform the user
+            if (InvokeRequired)
+            {
+                Invoke(() => OnPortListUpdateRequired(sender, e));
+                return;
+            }
+            
+            _statusLabel.Text = "Device disconnected - Use 'Add Port' to refresh COM port list";
         }
     }
 }

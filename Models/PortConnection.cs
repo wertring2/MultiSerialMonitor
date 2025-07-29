@@ -48,6 +48,7 @@ namespace MultiSerialMonitor.Models
         public event EventHandler<ConnectionStatus>? StatusChanged;
         public event EventHandler<string>? ErrorOccurred;
         public event EventHandler<DetectionMatch>? PatternDetected;
+        public static event EventHandler? PortListUpdateRequired;
         
         public void OnDataReceived(string data)
         {
@@ -175,5 +176,10 @@ namespace MultiSerialMonitor.Models
         }
         
         public event EventHandler? DataCleared;
+        
+        public static void RequestPortListUpdate()
+        {
+            PortListUpdateRequired?.Invoke(null, EventArgs.Empty);
+        }
     }
 }

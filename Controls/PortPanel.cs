@@ -31,6 +31,8 @@ namespace MultiSerialMonitor.Controls
         public event EventHandler? ViewDetectionsRequested;
         public event EventHandler? ClearDataRequested;
         public event EventHandler? ExportDataRequested;
+        public event EventHandler? CopyDetectionConfigRequested;
+        public event EventHandler? PasteDetectionConfigRequested;
         
         public PortPanel(PortConnection connection)
         {
@@ -205,6 +207,12 @@ namespace MultiSerialMonitor.Controls
             var exportItem = new ToolStripMenuItem("Export Data...");
             exportItem.Click += (s, e) => ExportDataRequested?.Invoke(this, EventArgs.Empty);
             
+            var copyDetectionItem = new ToolStripMenuItem("Copy Detection Configuration");
+            copyDetectionItem.Click += (s, e) => CopyDetectionConfigRequested?.Invoke(this, EventArgs.Empty);
+            
+            var pasteDetectionItem = new ToolStripMenuItem("Paste Detection Configuration");
+            pasteDetectionItem.Click += (s, e) => PasteDetectionConfigRequested?.Invoke(this, EventArgs.Empty);
+            
             var removeItem = new ToolStripMenuItem("Remove");
             removeItem.Click += (s, e) => RemoveRequested?.Invoke(this, EventArgs.Empty);
             
@@ -214,6 +222,9 @@ namespace MultiSerialMonitor.Controls
                 new ToolStripSeparator(),
                 exportItem,
                 clearItem,
+                new ToolStripSeparator(),
+                copyDetectionItem,
+                pasteDetectionItem,
                 new ToolStripSeparator(),
                 removeItem
             });
@@ -254,6 +265,14 @@ namespace MultiSerialMonitor.Controls
             {
                 _contextMenu.Items[0].Enabled = Connection.Status != ConnectionStatus.Connected; // Connect
                 _contextMenu.Items[1].Enabled = Connection.Status == ConnectionStatus.Connected; // Disconnect
+                
+                // Enable/disable paste detection configuration based on clipboard status
+                var pasteDetectionItem = _contextMenu.Items.OfType<ToolStripMenuItem>()
+                    .FirstOrDefault(item => item.Text == "Paste Detection Configuration");
+                if (pasteDetectionItem != null)
+                {
+                    pasteDetectionItem.Enabled = Form1.HasCopiedDetectionPatterns();
+                }
             }
         }
         

@@ -115,11 +115,30 @@ namespace MultiSerialMonitor.Services
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    throw new Exception($"Port {Connection.PortName} is already in use by another application or connection.");
+                    throw new Exception($"Access Denied - Port {Connection.PortName}\n\n" +
+                                      "The port is already in use by another application.\n\n" +
+                                      "• Close Arduino IDE, PuTTY, or other serial programs\n" +
+                                      "• Check Task Manager for background processes\n" +
+                                      "• Try running as Administrator if needed");
                 }
                 catch (IOException ioEx)
                 {
-                    throw new Exception($"Port {Connection.PortName} IO error: {ioEx.Message}");
+                    string detailedMessage = GetIOErrorMessage(ioEx);
+                    throw new Exception(detailedMessage);
+                }
+                catch (InvalidOperationException iopEx)
+                {
+                    throw new Exception($"Configuration Error - Port {Connection.PortName}\n\n" +
+                                      $"Invalid port settings: {iopEx.Message}\n\n" +
+                                      "• Check baud rate, data bits, parity settings\n" +
+                                      "• Verify the port configuration");
+                }
+                catch (ArgumentException argEx)
+                {
+                    throw new Exception($"Invalid Port - {Connection.PortName}\n\n" +
+                                      $"Port name is invalid: {argEx.Message}\n\n" +
+                                      "• Check the port name format\n" +
+                                      "• Refresh the port list");
                 }
                 
                 // Verify port is really open
@@ -138,10 +157,108 @@ namespace MultiSerialMonitor.Services
                 // Timeout
                 _serialPort?.Dispose();
                 _serialPort = null;
-                throw new TimeoutException($"Connection timeout after {Connection.Config.ConnectionTimeoutMs}ms");
+                throw new TimeoutException($"Connection Timeout - Port {Connection.PortName}\n\n" +
+                                         $"Failed to connect within {Connection.Config.ConnectionTimeoutMs / 1000} seconds.\n\n" +
+                                         "• Device may not be responding\n" +
+                                         "• Check power and connections\n" +
+                                         "• Try a longer timeout in connection settings\n" +
+                                         "• Verify correct baud rate");
             }
             
             await connectTask; // Propagate any exception
+        }
+        
+        private string GetIOErrorMessage(IOException ioEx)
+        {
+            string message = ioEx.Message.ToLower();
+            
+            if (message.Contains("device attached to the system is not functioning") ||
+                message.Contains("device is not functioning"))
+            {
+                return $"Device Error - Port {Connection.PortName}\n\n" +
+                       "The connected device is not functioning properly.\n\n" +
+                       "Troubleshooting steps:\n" +
+                       "• Check device connection\n" +
+                       "• Unplug and reconnect USB cable\n" +
+                       "• Restart device or computer\n" +
+                       "• Check Device Manager for driver issues\n" +
+                       "• Try a different USB port\n\n" +
+                       "If the problem persists, the device may be faulty.";
+            }
+            else if (message.Contains("port does not exist") || message.Contains("not exist"))
+            {
+                return $"Port Not Found - {Connection.PortName}\n\n" +
+                       "The device may have been disconnected.\n\n" +
+                       "• Check physical connection\n" +
+                       "• Refresh port list in Add Port dialog\n" +
+                       "• Check Device Manager";
+            }
+            else if (message.Contains("access is denied") || message.Contains("denied"))
+            {
+                return $"Access Denied - Port {Connection.PortName}\n\n" +
+                       "The port is in use by another application\nor you lack permissions.\n\n" +
+                       "• Close other serial programs\n" +
+                       "• Run as Administrator if needed";
+            }
+            else if (message.Contains("sharing violation") || message.Contains("already in use"))
+            {
+                return $"Port In Use - {Connection.PortName}\n\n" +
+                       "Another application is using this port.\n\n" +
+                       "• Close Arduino IDE, PuTTY, or other serial tools\n" +
+                       "• Check Task Manager for background processes";
+            }
+            else
+            {
+                return $"Connection Error - Port {Connection.PortName}\n\n" +
+                       $"{ioEx.Message}\n\n" +
+                       "• Try disconnecting and reconnecting the device\n" +
+                       "• Check cables and connections";
+            }
+        }
+        
+        private bool IsDeviceDisconnectedError(IOException ioEx)
+        {
+            string message = ioEx.Message.ToLower();
+            return message.Contains("device attached to the system is not functioning") ||
+                   message.Contains("device is not functioning") ||
+                   message.Contains("device has been removed") ||
+                   message.Contains("device not ready") ||
+                   message.Contains("port does not exist") ||
+                   message.Contains("handle is invalid") ||
+                   message.Contains("operation was canceled");
+        }
+        
+        private void HandleDeviceDisconnection(IOException ioEx)
+        {
+            Connection.OnDataReceived("[DEVICE DISCONNECTED] The connected device has been removed or is not functioning");
+            Connection.OnDataReceived($"[ERROR DETAILS] {ioEx.Message}");
+            Connection.OnDataReceived("[INFO] Please check the device connection and try reconnecting");
+            Connection.OnDataReceived("[INFO] The COM port list will be refreshed automatically");
+            
+            // Set connection status to error with specific message
+            Connection.SetStatus(ConnectionStatus.Error);
+            Connection.SetError("Device disconnected - check hardware connection");
+            
+            // Request port list update to refresh available ports
+            PortConnection.RequestPortListUpdate();
+            
+            // Clean up the serial port
+            try
+            {
+                if (_serialPort?.IsOpen == true)
+                {
+                    _serialPort.Close();
+                }
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+            finally
+            {
+                _serialPort?.Dispose();
+                _serialPort = null;
+            }
         }
         
         private string GetDetailedErrorMessage(Exception ex)
@@ -149,8 +266,7 @@ namespace MultiSerialMonitor.Services
             return ex switch
             {
                 UnauthorizedAccessException uae => GetUnauthorizedAccessMessage(uae),
-                IOException ioe when ioe.Message.Contains("not exist") => $"Port {Connection.PortName} does not exist.",
-                IOException ioe when ioe.Message.Contains("denied") => $"Access to {Connection.PortName} was denied. Check permissions.",
+                IOException ioe => GetIOErrorMessage(ioe),
                 TimeoutException => $"Connection timed out. Device may not be responding.",
                 InvalidOperationException => $"Invalid port configuration. Check settings.",
                 _ => $"Connection failed: {ex.Message}"
@@ -241,6 +357,19 @@ namespace MultiSerialMonitor.Services
                     Connection.OnDataReceived($"Error: {error}");
                     throw new TimeoutException(error);
                 }
+                catch (IOException ioEx)
+                {
+                    // Handle device disconnection during write
+                    if (IsDeviceDisconnectedError(ioEx))
+                    {
+                        HandleDeviceDisconnection(ioEx);
+                        throw new InvalidOperationException("Device was disconnected during write operation");
+                    }
+                    
+                    var error = $"IO error sending command: {ioEx.Message}";
+                    Connection.OnDataReceived($"Error: {error}");
+                    throw new IOException(error, ioEx);
+                }
                 catch (InvalidOperationException ex)
                 {
                     var error = "Port was closed unexpectedly";
@@ -279,6 +408,18 @@ namespace MultiSerialMonitor.Services
                         _lineBuilder.Append(c);
                     }
                 }
+            }
+            catch (IOException ioEx)
+            {
+                // Handle device disconnection during read
+                if (IsDeviceDisconnectedError(ioEx))
+                {
+                    HandleDeviceDisconnection(ioEx);
+                    return;
+                }
+                
+                Connection.OnDataReceived($"[READ ERROR] IO error: {ioEx.Message}");
+                Connection.SetError($"Port read error: {ioEx.Message}");
             }
             catch (InvalidOperationException ioEx)
             {
