@@ -1139,10 +1139,26 @@ namespace MultiSerialMonitor
                 form.Close();
             }
             
-            // Dispose all monitors
+            // Disconnect and dispose all monitors
             foreach (var monitor in _monitors.Values)
             {
-                monitor.Dispose();
+                try
+                {
+                    if (monitor.IsConnected)
+                    {
+                        // Disconnect from all ports before closing
+                        monitor.DisconnectAsync().Wait(1000); // Wait max 1 second per connection
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Log error but continue with disposal
+                    Debug.WriteLine($"Error disconnecting monitor during form close: {ex.Message}");
+                }
+                finally
+                {
+                    monitor.Dispose();
+                }
             }
             
             base.OnFormClosing(e);
