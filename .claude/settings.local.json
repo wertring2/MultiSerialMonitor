@@ -7,7 +7,14 @@
       "Bash(touch:*)",
       "Bash(/mnt/c/Program Files/dotnet/dotnet.exe restore)",
       "Bash(/mnt/c/Program Files/dotnet/dotnet.exe build --configuration Release)",
-      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe publish --configuration Release --runtime win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:EnableCompressionInSingleFile=true --verbosity minimal)"
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe publish --configuration Release --runtime win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:EnableCompressionInSingleFile=true --verbosity minimal)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe clean)",
+      "Bash(/mnt/c/Program Files/dotnet/dotnet.exe publish --configuration Release --runtime win-x64 --self-contained true --output bin/Release/net9.0-windows/win-x64/publish /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:IncludeAllContentForSelfExtract=true /p:EnableCompressionInSingleFile=true --verbosity minimal)",
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(\"/mnt/c/Program Files (x86)/NSIS/makensis.exe\" installer.nsi)",
+      "Bash(./bin/Debug/net9.0-windows/win-x64/MultiSerialMonitor.exe)",
+      "Bash(powershell.exe:*)"
     ],
     "deny": []
   }

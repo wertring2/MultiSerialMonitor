@@ -24,6 +24,7 @@ namespace MultiSerialMonitor.Models
         public ConnectionType Type { get; set; }
         public ConnectionStatus Status { get; set; } = ConnectionStatus.Disconnected;
         public string LastLine { get; set; } = "";
+        public string LastPatternName { get; set; } = "";
         public List<string> OutputHistory { get; } = new List<string>();
         
         // Serial Port specific properties
@@ -98,11 +99,17 @@ namespace MultiSerialMonitor.Models
         
         private void CheckForPatternMatches(string data)
         {
-            if (Config.DetectionPatterns == null || Config.DetectionPatterns.Count == 0)
+            if (Config?.DetectionPatterns == null || Config.DetectionPatterns.Count == 0)
+                return;
+            
+            if (string.IsNullOrEmpty(data))
                 return;
                 
-            foreach (var pattern in Config.DetectionPatterns.Where(p => p.IsEnabled))
+            foreach (var pattern in Config.DetectionPatterns.Where(p => p != null && p.IsEnabled))
             {
+                if (string.IsNullOrEmpty(pattern.Pattern))
+                    continue;
+                    
                 bool isMatch = false;
                 string matchedText = "";
                 
@@ -119,20 +126,33 @@ namespace MultiSerialMonitor.Models
                             matchedText = match.Value;
                         }
                     }
-                    catch
+                    catch (ArgumentException)
                     {
                         // Invalid regex pattern, skip
+                        continue;
+                    }
+                    catch (Exception)
+                    {
+                        // Other regex errors, skip
                         continue;
                     }
                 }
                 else
                 {
                     // Simple string contains check
-                    var comparison = pattern.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
-                    if (data.Contains(pattern.Pattern, comparison))
+                    try
                     {
-                        isMatch = true;
-                        matchedText = pattern.Pattern;
+                        var comparison = pattern.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+                        if (data.Contains(pattern.Pattern, comparison))
+                        {
+                            isMatch = true;
+                            matchedText = pattern.Pattern;
+                        }
+                    }
+                    catch
+                    {
+                        // String comparison error, skip
+                        continue;
                     }
                 }
                 
@@ -141,7 +161,7 @@ namespace MultiSerialMonitor.Models
                     var detectionMatch = new DetectionMatch
                     {
                         PatternId = pattern.Id,
-                        PatternName = pattern.Name,
+                        PatternName = pattern.Name ?? "Unknown Pattern",
                         MatchedText = matchedText,
                         FullLine = data,
                         Timestamp = DateTime.Now,
@@ -149,6 +169,7 @@ namespace MultiSerialMonitor.Models
                     };
                     
                     DetectionMatches.Add(detectionMatch);
+                    LastPatternName = pattern.Name ?? "Unknown Pattern";
                     PatternDetected?.Invoke(this, detectionMatch);
                 }
             }
@@ -172,6 +193,7 @@ namespace MultiSerialMonitor.Models
             OutputHistory.Clear();
             DetectionMatches.Clear();
             LastLine = "";
+            LastPatternName = "";
             DataCleared?.Invoke(this, EventArgs.Empty);
         }
         

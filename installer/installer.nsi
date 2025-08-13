@@ -1,6 +1,6 @@
 ; NSIS Script for Multi Serial Monitor Installer
 ; Q WAVE COMPANY LIMITED
-; Version 1.0.0
+; Version 1.0.2
 
 ;--------------------------------
 ; Include Modern UI
@@ -9,7 +9,7 @@
 ;--------------------------------
 ; General Settings
 Name "Multi Serial Monitor"
-OutFile "MultiSerialMonitor_Setup_v1.0.0.exe"
+OutFile "MultiSerialMonitor_Setup_v1.0.2.exe"
 Unicode True
 
 ; Installation directory
@@ -65,17 +65,17 @@ SetCompressorDictSize 32
 
 ;--------------------------------
 ; Version Information
-VIProductVersion "1.0.0.0"
+VIProductVersion "1.0.2.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName" "Multi Serial Monitor"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "Comments" "Professional Serial Port and Telnet Monitoring Application"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName" "Q WAVE COMPANY LIMITED"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "© 2025 Q WAVE COMPANY LIMITED. All rights reserved."
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "Multi Serial Monitor Installer"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.0.0.0"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "1.0.0.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.0.2.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion" "1.0.2.0"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "InternalName" "MultiSerialMonitor"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalTrademarks" ""
-VIAddVersionKey /LANG=${LANG_ENGLISH} "OriginalFilename" "MultiSerialMonitor_Setup_v1.0.0.exe"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "OriginalFilename" "MultiSerialMonitor_Setup_v1.0.2.exe"
 
 ;--------------------------------
 ; Installer Sections
@@ -104,7 +104,7 @@ Section "Multi Serial Monitor (Required)" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "DisplayIcon" "$INSTDIR\favicon.ico"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "Publisher" "Q WAVE COMPANY LIMITED"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "DisplayVersion" "1.0.0"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "DisplayVersion" "1.0.2"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "URLInfoAbout" "https://qwave.co.th"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\MultiSerialMonitor" "NoRepair" 1

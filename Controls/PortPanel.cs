@@ -120,9 +120,10 @@ namespace MultiSerialMonitor.Controls
                 Font = new Font("Segoe UI", 8, FontStyle.Bold),
                 ForeColor = Color.DarkRed,
                 Location = new Point(10, 115),
-                Size = new Size(Width - 160, 20),
+                Size = new Size(Width - 50, 20),
                 Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                AutoEllipsis = true
             };
             _detectionLabel.Click += (s, e) => 
             {
@@ -376,6 +377,7 @@ namespace MultiSerialMonitor.Controls
                 _packageCount = 0;
                 _lastTimestamp = null;
                 Connection.DetectionMatches.Clear();
+                Connection.LastPatternName = "";
                 UpdateStatsDisplay();
                 UpdateDetectionDisplay();
             }
@@ -547,29 +549,49 @@ namespace MultiSerialMonitor.Controls
         
         private void UpdateDetectionDisplay()
         {
-            int detectionCount = Connection.DetectionMatches.Count;
-            var detectionsLabel = LocalizationManager.GetString("Detections");
-            _detectionLabel.Text = $"{detectionsLabel}: {detectionCount}";
+            if (_detectionLabel == null || Connection == null)
+                return;
+                
+            int detectionCount = Connection.DetectionMatches?.Count ?? 0;
+            var detectionsLabel = LocalizationManager.GetString("Detections") ?? "Detections";
             
-            if (detectionCount > 0)
+            // Display detection count and latest pattern name
+            if (!string.IsNullOrEmpty(Connection.LastPatternName))
+            {
+                _detectionLabel.Text = $"{detectionsLabel}: {detectionCount} | Pattern: {Connection.LastPatternName}";
+            }
+            else
+            {
+                _detectionLabel.Text = $"{detectionsLabel}: {detectionCount}";
+            }
+            
+            if (detectionCount > 0 && Connection.DetectionMatches != null)
             {
                 _detectionLabel.ForeColor = Color.DarkRed;
                 _detectionLabel.Font = new Font("Segoe UI", 8, FontStyle.Bold);
                 
                 // Show tooltip with recent detections
                 var recentDetections = Connection.DetectionMatches
+                    .Where(d => d != null)
                     .OrderByDescending(d => d.Timestamp)
                     .Take(3)
-                    .Select(d => $"{d.PatternName}: {d.MatchedText}")
+                    .Select(d => $"{d.PatternName ?? "Unknown"}: {d.MatchedText ?? ""}")
                     .ToList();
                 
-                var toolTip = new ToolTip();
-                toolTip.SetToolTip(_detectionLabel, string.Join("\n", recentDetections) + "\nClick to view all");
+                if (recentDetections.Any())
+                {
+                    var toolTip = new ToolTip();
+                    toolTip.SetToolTip(_detectionLabel, string.Join("\n", recentDetections) + "\nClick to view all");
+                }
             }
             else
             {
                 _detectionLabel.ForeColor = Color.Gray;
                 _detectionLabel.Font = new Font("Segoe UI", 8);
+                
+                // Clear any existing tooltip
+                var toolTip = new ToolTip();
+                toolTip.SetToolTip(_detectionLabel, "No detections");
             }
         }
         
@@ -656,7 +678,7 @@ namespace MultiSerialMonitor.Controls
             if (_statsLabel != null)
                 _statsLabel.Width = Width - 100;
             if (_detectionLabel != null)
-                _detectionLabel.Width = Width - 80;
+                _detectionLabel.Width = Width - 50;
             
             // Configure detection button stays at the right of detection label
             if (_configDetectionButton != null)
